@@ -22,7 +22,7 @@ const TEX_FLOWER_EMBER := preload("res://assets/generated/sprites/flower_ember.p
 const TEX_LANTERN := preload("res://assets/generated/sprites/lantern.png")
 const TEX_COIN := preload("res://assets/generated/sprites/coin.png")
 
-const MUSIC_GLOWING_GARDEN := preload("res://assets/audio/music_07_glowing_garden.wav")
+const MUSIC_GLOWING_GARDEN := preload("res://assets/audio/music_07_glowing_garden.mp3")
 # Music rule: ONE background song only. Glowing Garden is the base music.
 # Procedural music stems are intentionally not loaded; only SFX layer on top.
 const SFX_PLANT := preload("res://assets/audio/sfx_plant.wav")
@@ -104,7 +104,7 @@ func _ready() -> void:
 		PlantData.new("nova", "Nova Lotus", 140, 520, 34.0, Color(0.45, 1.0, 0.95), TEX_FLOWER_SPARK, "Constellarium crop. Late-game engine."),
 		PlantData.new("sun", "Sunseed", 420, 1850, 46.0, Color(1.0, 0.58, 0.16), TEX_FLOWER_EMBER, "Ascended crop. Turns dust into absurd glow."),
 	]
-	print("LANTERN_HOLLOW_READY audio_build_v13_ios_tap_audio_unlock")
+	print("LANTERN_HOLLOW_READY audio_build_v14_ios_mp3_tap_unlock")
 	# Do not force the viewport to 540x960 here. Web/mobile shells provide
 	# the real canvas size; _draw() scales the 540x960 stage to fill it.
 	_setup_audio()
@@ -171,10 +171,17 @@ func _setup_audio() -> void:
 func _unlock_audio_from_gesture() -> void:
 	if not audio_ready or music_started or not music_players.has("base"):
 		return
+	music_started = true
 	var player: AudioStreamPlayer = music_players["base"]
 	player.play()
-	music_started = true
-	print("LANTERN_HOLLOW_AUDIO_STARTED user_gesture")
+	# iPhone Safari is picky: play one short SFX inside the same tap too.
+	# This makes the audio unlock obvious and primes the WebAudio path.
+	if sfx_players.has("plant"):
+		var chirp: AudioStreamPlayer = sfx_players["plant"]
+		chirp.stop()
+		chirp.volume_db = -8.0
+		chirp.play()
+	print("LANTERN_HOLLOW_AUDIO_STARTED user_gesture_mp3")
 
 func _play_sfx(key: String) -> void:
 	if not audio_ready or not sfx_players.has(key):
