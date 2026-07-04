@@ -2,7 +2,7 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 		<title>Lantern Hollow</title>
 		<style>
 html, body, #canvas {
@@ -11,15 +11,34 @@ html, body, #canvas {
 	border: 0;
 }
 
+html, body {
+	width: 100%;
+	height: 100%;
+	min-width: 100vw;
+	min-height: 100vh;
+	min-height: 100dvh;
+}
+
 body {
 	color: white;
 	background-color: black;
 	overflow: hidden;
 	touch-action: none;
+	position: fixed;
+	inset: 0;
 }
 
 #canvas {
 	display: block;
+	position: fixed;
+	inset: 0;
+	width: 100vw !important;
+	height: 100vh !important;
+	height: 100dvh !important;
+	max-width: none !important;
+	max-height: none !important;
+	object-fit: cover;
+	touch-action: none;
 }
 
 #canvas:focus {
@@ -111,9 +130,32 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":10959960,"index.wasm":39509339},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":18818812,"index.wasm":39509339},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
+
+// Mobile fullscreen guard: exported Godot shells can leave the canvas at
+// its internal size on phones. Force the DOM canvas to match the live visual
+// viewport before and during the game boot.
+(function forceMobileFullscreenCanvas() {
+	function resizeCanvas() {
+		const canvas = document.getElementById('canvas');
+		if (!canvas) return;
+		const vv = window.visualViewport;
+		const w = Math.ceil(vv ? vv.width : window.innerWidth);
+		const h = Math.ceil(vv ? vv.height : window.innerHeight);
+		document.documentElement.style.width = w + 'px';
+		document.documentElement.style.height = h + 'px';
+		document.body.style.width = w + 'px';
+		document.body.style.height = h + 'px';
+		canvas.style.width = w + 'px';
+		canvas.style.height = h + 'px';
+	}
+	window.addEventListener('resize', resizeCanvas, { passive: true });
+	window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250), { passive: true });
+	if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeCanvas, { passive: true });
+	resizeCanvas();
+})();
 
 (function () {
 	const statusOverlay = document.getElementById('status');

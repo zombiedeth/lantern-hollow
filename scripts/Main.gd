@@ -22,12 +22,9 @@ const TEX_FLOWER_EMBER := preload("res://assets/generated/sprites/flower_ember.p
 const TEX_LANTERN := preload("res://assets/generated/sprites/lantern.png")
 const TEX_COIN := preload("res://assets/generated/sprites/coin.png")
 
-const MUSIC_BASE := preload("res://assets/audio/music_01_base_garden.wav")
-const MUSIC_PLANTING := preload("res://assets/audio/music_02_planting_pulse.wav")
-const MUSIC_BLOOM := preload("res://assets/audio/music_03_bloom_sparkle.wav")
-const MUSIC_FAIRY := preload("res://assets/audio/music_04_fairy_flutter.wav")
-const MUSIC_MOONWELL := preload("res://assets/audio/music_05_moonwell_shimmer.wav")
-const MUSIC_COSMIC := preload("res://assets/audio/music_06_constellation_pad.wav")
+const MUSIC_GLOWING_GARDEN := preload("res://assets/audio/music_07_glowing_garden.wav")
+# Music rule: ONE background song only. Glowing Garden is the base music.
+# Procedural music stems are intentionally not loaded; only SFX layer on top.
 const SFX_PLANT := preload("res://assets/audio/sfx_plant.wav")
 const SFX_BLOOM := preload("res://assets/audio/sfx_bloom.wav")
 const SFX_HARVEST := preload("res://assets/audio/sfx_harvest.wav")
@@ -106,8 +103,9 @@ func _ready() -> void:
 		PlantData.new("nova", "Nova Lotus", 140, 520, 34.0, Color(0.45, 1.0, 0.95), TEX_FLOWER_SPARK, "Constellarium crop. Late-game engine."),
 		PlantData.new("sun", "Sunseed", 420, 1850, 46.0, Color(1.0, 0.58, 0.16), TEX_FLOWER_EMBER, "Ascended crop. Turns dust into absurd glow."),
 	]
-	print("LANTERN_HOLLOW_READY adaptive_audio_build_v8")
-	get_viewport().size = Vector2i(int(W), int(H))
+	print("LANTERN_HOLLOW_READY audio_build_v12_fullscreen_mobile")
+	# Do not force the viewport to 540x960 here. Web/mobile shells provide
+	# the real canvas size; _draw() scales the 540x960 stage to fill it.
 	_setup_audio()
 	_show_big_prompt("Lantern Hollow", "Plant seeds. Harvest blooms. Buy upgrades.\nEmberlilies lead to Moonwell, Moonwell leads to Starvine,\nand Ascension turns huge glow into permanent Stardust.", "Tap beds to begin.")
 	set_process(true)
@@ -124,32 +122,37 @@ func _process(delta: float) -> void:
 	_update_adaptive_music(delta)
 	queue_redraw()
 
+func _stage_scale() -> Vector2:
+	var vp := get_viewport_rect().size
+	if vp.x <= 0.0 or vp.y <= 0.0:
+		return Vector2.ONE
+	# Fill the actual preview/browser/mobile canvas exactly. This prevents the
+	# exported game from sitting tiny in a corner when the HTML canvas is larger
+	# than the original 540x960 design stage.
+	return Vector2(vp.x / W, vp.y / H)
+
+func _screen_to_stage(pos: Vector2) -> Vector2:
+	var s := _stage_scale()
+	return Vector2(pos.x / maxf(0.001, s.x), pos.y / maxf(0.001, s.y))
+
 
 func _setup_audio() -> void:
-	var music := {
-		"base": MUSIC_BASE,
-		"planting": MUSIC_PLANTING,
-		"bloom": MUSIC_BLOOM,
-		"fairy": MUSIC_FAIRY,
-		"moonwell": MUSIC_MOONWELL,
-		"cosmic": MUSIC_COSMIC,
-	}
-	for key in music.keys():
-		var stream: AudioStream = music[key]
-		# Force a valid play length on loop_end (bug in WAV import sets it to 0)
-		if stream is AudioStreamWAV:
-			var wav := stream as AudioStreamWAV
-			wav.loop_mode = AudioStreamWAV.LOOP_DISABLED
-			wav.loop_end = wav.data.size() / 4  # bytes / (2 bytes/sample / 2 channels) = samples
-		var player := AudioStreamPlayer.new()
-		player.name = "Music_%s" % key
-		player.stream = stream
-		player.volume_db = -80.0
-		player.finished.connect(func(): player.play())  # loop forever
-		add_child(player)
-		player.play()
-		music_players[key] = player
-	music_players["base"].volume_db = -19.0
+	# ONE music track only: Glowing Garden as the lofi base bed.
+	# Progression sounds below are SFX only, not extra music stems.
+	var stream: AudioStream = MUSIC_GLOWING_GARDEN
+	# Force a valid play length on loop_end (bug in WAV import sets it to 0)
+	if stream is AudioStreamWAV:
+		var wav := stream as AudioStreamWAV
+		wav.loop_mode = AudioStreamWAV.LOOP_DISABLED
+		wav.loop_end = wav.data.size() / 4  # bytes / (2 bytes/sample / 2 channels) = samples
+	var base_player := AudioStreamPlayer.new()
+	base_player.name = "Music_Base_Lofi"
+	base_player.stream = stream
+	base_player.volume_db = -15.0
+	base_player.finished.connect(func(): base_player.play())  # loop forever
+	add_child(base_player)
+	base_player.play()
+	music_players["base"] = base_player
 	var sfx := {"plant": SFX_PLANT, "bloom": SFX_BLOOM, "harvest": SFX_HARVEST, "upgrade": SFX_UPGRADE, "fairy": SFX_FAIRY, "ascend": SFX_ASCEND}
 	for key in sfx.keys():
 		var player := AudioStreamPlayer.new()
@@ -168,24 +171,11 @@ func _play_sfx(key: String) -> void:
 	player.play()
 
 func _update_adaptive_music(delta: float) -> void:
-	if not audio_ready:
+	# No adaptive music layers anymore. Keep one lofi base song steady.
+	if not audio_ready or not music_players.has("base"):
 		return
-	var bloomed := 0
-	var planted := plants.size()
-	for key in plants.keys():
-		if _plant_stage(plants[key]) >= 2:
-			bloomed += 1
-	var targets := {
-		"base": -19.0,
-		"planting": -22.0 if planted > 0 else -80.0,
-		"bloom": -20.0 if bloomed >= 3 else -80.0,
-		"fairy": -22.0 if sprite_helpers > 0 else -80.0,
-		"moonwell": -22.0 if moonwell_unlocked else -80.0,
-		"cosmic": -20.0 if constellarium_unlocked or ascensions > 0 else -80.0,
-	}
-	for key in targets.keys():
-		var player: AudioStreamPlayer = music_players[key]
-		player.volume_db = lerpf(player.volume_db, float(targets[key]), minf(1.0, delta * 1.8))
+	var player: AudioStreamPlayer = music_players["base"]
+	player.volume_db = lerpf(player.volume_db, -15.0, minf(1.0, delta * 1.8))
 
 func _update_effects(delta: float) -> void:
 	for r in tap_rings:
@@ -244,11 +234,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventScreenTouch and event.pressed:
 		_handle_tap(event.position)
 
-func _handle_tap(pos: Vector2) -> void:
+func _handle_tap(screen_pos: Vector2) -> void:
 	if not active_prompt.is_empty():
 		active_prompt.clear()
 		return
 
+	var pos := _screen_to_stage(screen_pos)
 	player_target = pos
 	tap_rings.append({"pos": pos, "age": 0.0})
 
@@ -511,6 +502,8 @@ func _add_pulse(rect: Rect2, color: Color) -> void:
 	pulse_cards.append({"kind": "rect", "age": 0.0, "rect": rect, "color": color})
 
 func _draw() -> void:
+	var s := _stage_scale()
+	draw_set_transform(Vector2.ZERO, 0.0, s)
 	_draw_background()
 	_draw_plot_targets()
 	_draw_plants()
@@ -523,6 +516,7 @@ func _draw() -> void:
 	_draw_card_pulses()
 	_draw_active_prompt()
 	_draw_ascension_fx()
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 func _draw_background() -> void:
 	draw_texture_rect(BG, Rect2(0, 0, W, H), false)
