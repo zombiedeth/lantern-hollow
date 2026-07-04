@@ -856,9 +856,34 @@ func draw_round_rect(rect: Rect2, radius: float, color: Color, filled: bool = tr
 	if not filled:
 		draw_rect(rect, color, false, 2.0)
 		return
-	draw_rect(Rect2(rect.position + Vector2(radius, 0), Vector2(rect.size.x - radius * 2.0, rect.size.y)), color, true)
-	draw_rect(Rect2(rect.position + Vector2(0, radius), Vector2(rect.size.x, rect.size.y - radius * 2.0)), color, true)
-	draw_circle(rect.position + Vector2(radius, radius), radius, color)
-	draw_circle(rect.position + Vector2(rect.size.x - radius, radius), radius, color)
-	draw_circle(rect.position + Vector2(radius, rect.size.y - radius), radius, color)
-	draw_circle(rect.position + Vector2(rect.size.x - radius, rect.size.y - radius), radius, color)
+	radius = minf(radius, minf(rect.size.x, rect.size.y) * 0.5)
+	if radius <= 1.0:
+		draw_rect(rect, color, true)
+		return
+	# Draw the rounded rectangle as a single filled polygon.
+	# The old approach (overlapping rects + draw_circle at each corner) left
+	# visible circle artifacts at the four corners on iPhone Safari's canvas
+	# renderer because anti-aliasing / alpha blending differed between the
+	# circle fills and the rect fills. A single polygon has no seams.
+	var p := rect.position
+	var s := rect.size
+	var r := radius
+	var pts := PackedVector2Array()
+	var n := 10  # segments per corner (smooth enough, cheap)
+	# Top edge -> top-right corner
+	for i in range(n + 1):
+		var a := -PI / 2.0 + (PI / 2.0) * float(i) / float(n)
+		pts.append(Vector2(p.x + s.x - r + cos(a) * r, p.y + r + sin(a) * r))
+	# Right edge -> bottom-right corner
+	for i in range(n + 1):
+		var a := 0.0 + (PI / 2.0) * float(i) / float(n)
+		pts.append(Vector2(p.x + s.x - r + cos(a) * r, p.y + s.y - r + sin(a) * r))
+	# Bottom edge -> bottom-left corner
+	for i in range(n + 1):
+		var a := PI / 2.0 + (PI / 2.0) * float(i) / float(n)
+		pts.append(Vector2(p.x + r + cos(a) * r, p.y + s.y - r + sin(a) * r))
+	# Left edge -> top-left corner
+	for i in range(n + 1):
+		var a := PI + (PI / 2.0) * float(i) / float(n)
+		pts.append(Vector2(p.x + r + cos(a) * r, p.y + r + sin(a) * r))
+	draw_colored_polygon(pts, color)
