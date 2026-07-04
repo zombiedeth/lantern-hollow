@@ -494,8 +494,7 @@ func _auto_plant_one() -> void:
 	for i in range(_plot_count()):
 		if not plants.has(i):
 			if _plant_plot(i, selected_index, true):
-				var fairy := _fairy_pos(0)
-				beams.append({"from": fairy, "to": _plot_pos(i), "age": 0.0, "color": catalog[selected_index].color})
+				beams.append({"from": _fairy_pos_for_plot(i), "to": _plot_pos(i), "age": 0.0, "color": catalog[selected_index].color})
 			return
 
 func _harvest_plot(plot_idx: int, automatic: bool) -> void:
@@ -512,7 +511,7 @@ func _harvest_plot(plot_idx: int, automatic: bool) -> void:
 	tap_rings.append({"pos": burst_pos, "age": 0.0, "color": data.color.lightened(0.18), "scale": 0.78})
 	_play_sfx("fairy" if automatic else "harvest")
 	if automatic:
-		beams.append({"from": _fairy_pos(plot_idx), "to": _plot_pos(plot_idx), "age": 0.0, "color": data.color})
+		beams.append({"from": _fairy_pos_for_plot(plot_idx), "to": _plot_pos(plot_idx), "age": 0.0, "color": data.color})
 		_flash("Fairy harvested %s: +%d glow" % [data.name, gained])
 	else:
 		_flash("Harvested %s: +%d glow" % [data.name, gained])
@@ -715,7 +714,6 @@ func _draw_plants() -> void:
 			if ATM_BLOOM_READY_PULSE_ENABLED:
 				draw_circle(p + Vector2(0, -18), 66.0 + ready_breathe * 8.0, Color(data.color.r, data.color.g, data.color.b, 0.08 + 0.06 * ready_breathe))
 				draw_arc(p + Vector2(0, -18), 54.0 + ready_breathe * 5.0, 0.0, TAU, 56, Color(1.0, 0.91, 0.58, 0.42 + 0.18 * ready_breathe), 2.5)
-				draw_string(ThemeDB.fallback_font, p + Vector2(-22, -72), "READY", HORIZONTAL_ALIGNMENT_LEFT, 52, 10, Color(1.0, 0.90, 0.48, 0.76 + 0.20 * ready_breathe))
 			draw_circle(p + Vector2(0, -16), 43 * pulse, Color(data.color.r, data.color.g, data.color.b, 0.26))
 			_draw_tex_center(data.tex, p + Vector2(0, -28), Vector2(78, 94), data.color.lightened(0.2) if data.id in ["star", "nova", "sun"] else Color.WHITE)
 			draw_arc(p + Vector2(0, -18), 48, 0, TAU, 48, Color(1, 1, 1, 0.36), 2.0)
@@ -763,6 +761,24 @@ func _fairy_pos(i: int) -> Vector2:
 	var pos := center + Vector2(cos(a) * ring * 1.25, sin(a * 1.37) * ring * 0.72)
 	pos.y += sin(t * 6.0 + float(i)) * 7.0
 	return pos
+
+func _fairy_pos_for_plot(plot_idx: int) -> Vector2:
+	# Beam FX should come from one of the fairies the player can actually see.
+	# Using plot_idx directly created invisible/off-pattern origin points, so lines
+	# looked like they shot in from random directions.
+	if sprite_helpers <= 0:
+		return player_pos
+	var target := _plot_pos(plot_idx)
+	var count := mini(sprite_helpers, 18)
+	var best_pos := _fairy_pos(0)
+	var best_dist := best_pos.distance_squared_to(target)
+	for i in range(1, count):
+		var pos := _fairy_pos(i)
+		var dist := pos.distance_squared_to(target)
+		if dist < best_dist:
+			best_dist = dist
+			best_pos = pos
+	return best_pos
 
 func _draw_beams() -> void:
 	for b in beams:
