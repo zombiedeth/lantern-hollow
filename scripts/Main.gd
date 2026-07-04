@@ -94,6 +94,11 @@ var ascension_fx := 0.0
 var plants: Dictionary = {}
 var player_pos := Vector2(270, 760)
 var player_target := Vector2(270, 760)
+var is_dragging := false
+var pointer_down := false
+var drag_start := Vector2.ZERO
+var drag_last := Vector2.ZERO
+const DRAG_THRESHOLD := 14.0
 
 func _ready() -> void:
 	catalog = [
@@ -116,6 +121,17 @@ func _process(delta: float) -> void:
 	var to_target := player_target - player_pos
 	if to_target.length() > 3.0:
 		player_pos += to_target.normalized() * min(PLAYER_SPEED * delta, to_target.length())
+
+	# While dragging, plant/harvest any bed the spirit passes over.
+	if is_dragging and pointer_down:
+		var plot_idx := _nearest_plot(player_pos)
+		if plot_idx != -1:
+			if plants.has(plot_idx):
+				var plant: Dictionary = plants[plot_idx]
+				if _plant_stage(plant) >= 2:
+					_harvest_plot(plot_idx, false)
+			else:
+				_plant_plot(plot_idx, selected_index, false)
 
 	_update_effects(delta)
 	_update_auto_systems(delta)
@@ -263,12 +279,45 @@ func _update_guidance() -> void:
 		_show_big_prompt("Ascension is near", "Ascension resets flowers and upgrades, but gives Stardust.\nStardust is permanent: every future run pays more and grows faster.", "At 6500 glow, tap Ascend.")
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_unlock_audio_from_gesture()
-		_handle_tap(event.position)
-	elif event is InputEventScreenTouch and event.pressed:
-		_unlock_audio_from_gesture()
-		_handle_tap(event.position)
+	# Mouse (desktop)
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_unlock_audio_from_gesture()
+			pointer_down = true
+			is_dragging = false
+			drag_start = event.position
+			drag_last = event.position
+		else:
+			if pointer_down and not is_dragging:
+				_handle_tap(event.position)
+			pointer_down = false
+			is_dragging = false
+	elif event is InputEventMouseMotion and pointer_down:
+		drag_last = event.position
+		if not is_dragging and event.position.distance_to(drag_start) > DRAG_THRESHOLD:
+			is_dragging = true
+		if is_dragging:
+			player_target = _screen_to_stage(event.position)
+
+	# Touch (mobile)
+	elif event is InputEventScreenTouch:
+		if event.pressed:
+			_unlock_audio_from_gesture()
+			pointer_down = true
+			is_dragging = false
+			drag_start = event.position
+			drag_last = event.position
+		else:
+			if pointer_down and not is_dragging:
+				_handle_tap(event.position)
+			pointer_down = false
+			is_dragging = false
+	elif event is InputEventScreenDrag:
+		drag_last = event.position
+		if not is_dragging and event.position.distance_to(drag_start) > DRAG_THRESHOLD:
+			is_dragging = true
+		if is_dragging:
+			player_target = _screen_to_stage(event.position)
 
 func _handle_tap(screen_pos: Vector2) -> void:
 	if not active_prompt.is_empty():
