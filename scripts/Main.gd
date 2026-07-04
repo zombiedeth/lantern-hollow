@@ -241,7 +241,7 @@ func _update_adaptive_music(delta: float) -> void:
 func _update_effects(delta: float) -> void:
 	for r in tap_rings:
 		r.age += delta
-	tap_rings = tap_rings.filter(func(r): return r.age < 0.55)
+	tap_rings = tap_rings.filter(func(r): return r.age < 0.38)
 	for s in sparkles:
 		s.age += delta
 		s.pos += s.vel * delta
@@ -340,7 +340,8 @@ func _handle_tap(screen_pos: Vector2) -> void:
 
 	var pos := _screen_to_stage(screen_pos)
 	player_target = pos
-	tap_rings.append({"pos": pos, "age": 0.0})
+	# Generic touch feedback was too busy with the new garden polish.
+	# Keep rings only for actual plant / harvest moments.
 
 	for i in range(4):
 		if _upgrade_rect(i).has_point(pos):
@@ -386,7 +387,7 @@ func _plant_plot(plot_idx: int, kind: int, automatic: bool) -> bool:
 	plants[plot_idx] = {"kind": kind, "planted_at": Time.get_ticks_msec() / 1000.0}
 	var burst_pos := _plot_pos(plot_idx)
 	_spawn_sparkles(burst_pos, selected.color, 22)
-	tap_rings.append({"pos": burst_pos, "age": 0.0, "color": selected.color.lightened(0.18), "scale": 0.95})
+	tap_rings.append({"pos": burst_pos, "age": 0.0, "color": selected.color.lightened(0.12), "scale": 0.62})
 	_play_sfx("fairy" if automatic else "plant")
 	if automatic:
 		_flash("Fairies planted %s" % selected.name)
@@ -508,8 +509,7 @@ func _harvest_plot(plot_idx: int, automatic: bool) -> void:
 	var burst_pos := _plot_pos(plot_idx)
 	_spawn_sparkles(burst_pos, data.color, 44)
 	_spawn_sparkles(burst_pos + Vector2(0, -18), Color(1.0, 0.92, 0.55), 18)
-	tap_rings.append({"pos": burst_pos, "age": 0.0, "color": data.color.lightened(0.25), "scale": 1.35})
-	tap_rings.append({"pos": burst_pos + Vector2(0, -18), "age": 0.0, "color": Color(1.0, 0.92, 0.55), "scale": 0.82})
+	tap_rings.append({"pos": burst_pos, "age": 0.0, "color": data.color.lightened(0.18), "scale": 0.78})
 	_play_sfx("fairy" if automatic else "harvest")
 	if automatic:
 		beams.append({"from": _fairy_pos(plot_idx), "to": _plot_pos(plot_idx), "age": 0.0, "color": data.color})
@@ -786,11 +786,11 @@ func _draw_sparkles() -> void:
 
 func _draw_tap_rings() -> void:
 	for r in tap_rings:
-		var a := 1.0 - float(r.age) / 0.55
+		var a := 1.0 - float(r.age) / 0.38
 		var color: Color = r.get("color", Color(1.0, 0.86, 0.42))
 		var scale: float = float(r.get("scale", 1.0))
-		draw_circle(r.pos, 12.0 * scale * a, Color(color.r, color.g, color.b, 0.18 * a))
-		draw_arc(r.pos, (12.0 + 48.0 * (1.0 - a)) * scale, 0.0, TAU, 56, Color(color.r, color.g, color.b, 0.92 * a), 4.0 * scale)
+		draw_circle(r.pos, 8.0 * scale * a, Color(color.r, color.g, color.b, 0.08 * a))
+		draw_arc(r.pos, (10.0 + 26.0 * (1.0 - a)) * scale, 0.0, TAU, 48, Color(color.r, color.g, color.b, 0.34 * a), 2.0 * scale)
 
 func _draw_ui() -> void:
 	draw_round_rect(Rect2(14, 14, 250, 84), 18, Color(0.035, 0.025, 0.075, 0.84), true)
