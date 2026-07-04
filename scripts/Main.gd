@@ -104,7 +104,7 @@ func _ready() -> void:
 		PlantData.new("nova", "Nova Lotus", 140, 520, 34.0, Color(0.45, 1.0, 0.95), TEX_FLOWER_SPARK, "Constellarium crop. Late-game engine."),
 		PlantData.new("sun", "Sunseed", 420, 1850, 46.0, Color(1.0, 0.58, 0.16), TEX_FLOWER_EMBER, "Ascended crop. Turns dust into absurd glow."),
 	]
-	print("LANTERN_HOLLOW_READY audio_build_v14_ios_mp3_tap_unlock")
+	print("LANTERN_HOLLOW_READY audio_build_v15_native_html_music")
 	# Do not force the viewport to 540x960 here. Web/mobile shells provide
 	# the real canvas size; _draw() scales the 540x960 stage to fill it.
 	_setup_audio()
@@ -172,6 +172,12 @@ func _unlock_audio_from_gesture() -> void:
 	if not audio_ready or music_started or not music_players.has("base"):
 		return
 	music_started = true
+	if OS.has_feature("web"):
+		# Web/iPhone Safari: the exported HTML shell starts the lofi track with
+		# a native <audio> element on the same user gesture. Do not also start
+		# Godot's WebAudio music, because Safari showed it as playing but silent.
+		print("LANTERN_HOLLOW_AUDIO_DELEGATED native_html_music")
+		return
 	var player: AudioStreamPlayer = music_players["base"]
 	player.play()
 	# iPhone Safari is picky: play one short SFX inside the same tap too.
@@ -194,7 +200,10 @@ func _play_sfx(key: String) -> void:
 
 func _update_adaptive_music(delta: float) -> void:
 	# No adaptive music layers anymore. Keep one lofi base song steady.
-	# On iOS/Safari this must remain silent until the first user gesture.
+	# Web/iPhone uses native HTML audio from docs/index.html instead of Godot WebAudio.
+	if OS.has_feature("web"):
+		return
+	# On native builds this must remain silent until the first user gesture.
 	if not audio_ready or not music_started or not music_players.has("base"):
 		return
 	var player: AudioStreamPlayer = music_players["base"]

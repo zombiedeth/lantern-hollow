@@ -111,6 +111,7 @@ body {
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
+<link rel="preload" href="music_07_glowing_garden.mp3" as="audio" type="audio/mpeg">
 
 	</head>
 	<body>
@@ -130,7 +131,7 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":15857468,"index.wasm":39509339},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":15857676,"index.wasm":39509339},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
@@ -155,6 +156,48 @@ const engine = new Engine(GODOT_CONFIG);
 	window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250), { passive: true });
 	if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeCanvas, { passive: true });
 	resizeCanvas();
+})();
+
+// iPhone Safari fallback: Godot WebAudio can report "playing" while staying
+// silent on some iPhones. Use native HTML audio for the base lofi track on web.
+// This is invisible: no overlay, no button, no extra UI. First normal game tap
+// starts it.
+(function setupLanternNativeAudio() {
+	const MUSIC_SRC = 'music_07_glowing_garden.mp3';
+	const audio = new Audio(MUSIC_SRC);
+	audio.id = 'lantern-native-music';
+	audio.loop = true;
+	audio.preload = 'auto';
+	audio.volume = 0.88;
+	audio.muted = false;
+	audio.setAttribute('playsinline', '');
+	audio.setAttribute('webkit-playsinline', '');
+	let started = false;
+	let attemptInFlight = false;
+
+	async function unlock(reason) {
+		if (started || attemptInFlight) return;
+		attemptInFlight = true;
+		try {
+			audio.muted = false;
+			audio.volume = 0.88;
+			if (audio.readyState === 0) audio.load();
+			await audio.play();
+			started = true;
+			console.log('LANTERN_NATIVE_AUDIO_STARTED', reason, audio.readyState, audio.currentSrc || MUSIC_SRC);
+		} catch (err) {
+			attemptInFlight = false;
+			console.warn('LANTERN_NATIVE_AUDIO_BLOCKED', reason, err && (err.name || err.message || err));
+		}
+	}
+
+	window.LanternNativeAudio = { unlock, audio };
+	['touchstart', 'touchend', 'pointerdown', 'mousedown', 'click'].forEach((eventName) => {
+		window.addEventListener(eventName, () => unlock(eventName), { capture: true, passive: true });
+	});
+	document.addEventListener('visibilitychange', () => {
+		if (!document.hidden && started && audio.paused) audio.play().catch(() => {});
+	});
 })();
 
 (function () {
