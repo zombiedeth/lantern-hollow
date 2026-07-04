@@ -272,7 +272,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _handle_tap(screen_pos: Vector2) -> void:
 	if not active_prompt.is_empty():
-		active_prompt.clear()
+		# Only dismiss when the player taps the "Got it!" button.
+		var stage_pos := _screen_to_stage(screen_pos)
+		if _prompt_button_rect().has_point(stage_pos):
+			active_prompt.clear()
 		return
 
 	var pos := _screen_to_stage(screen_pos)
@@ -740,25 +743,61 @@ func _seed_rect(i: int, visible_count: int) -> Rect2:
 	return Rect2(float(i) * button_w + 8.0, 840, button_w - 16.0, 104)
 
 
+const PROMPT_PANEL := Rect2(40, 90, 460, 340)
+
+func _prompt_button_rect() -> Rect2:
+	var cx := PROMPT_PANEL.position.x + PROMPT_PANEL.size.x * 0.5
+	var by := PROMPT_PANEL.position.y + PROMPT_PANEL.size.y - 52.0
+	return Rect2(cx - 75.0, by, 150.0, 38.0)
+
 func _draw_active_prompt() -> void:
 	if active_prompt.is_empty():
 		return
 	var age := float(active_prompt.get("age", 0.0))
-	var appear := clampf(age / 0.18, 0.0, 1.0)
-	# Dim the game behind the explanation so it reads like an actual tutorial modal.
-	draw_rect(Rect2(0, 0, W, H), Color(0.015, 0.01, 0.035, 0.48 * appear), true)
-	var panel := Rect2(34, 94, 472, 318)
+	var appear := clampf(age / 0.22, 0.0, 1.0)
+	var t := Time.get_ticks_msec() * 0.001
 	var color: Color = active_prompt.color
-	# Clean card shape: no decorative corner blobs. Rectangles read better on iPhone.
-	draw_rect(panel.grow(4), Color(color.r, color.g, color.b, 0.22 * appear), true)
-	draw_rect(panel, Color(0.035, 0.025, 0.075, 0.96 * appear), true)
-	draw_rect(Rect2(panel.position, Vector2(8, panel.size.y)), Color(color.r, color.g, color.b, 0.72 * appear), true)
-	draw_string(ThemeDB.fallback_font, panel.position + Vector2(28, 42), str(active_prompt.title), HORIZONTAL_ALIGNMENT_LEFT, 416, 25, Color(1, 1, 1, appear))
-	_draw_text_lines(str(active_prompt.body), panel.position + Vector2(28, 82), 25.0, 15, Color(0.92, 0.88, 1.0, appear), 416)
-	draw_rect(Rect2(panel.position + Vector2(24, 224), Vector2(424, 1)), Color(1.0, 0.86, 0.52, 0.25 * appear), true)
-	_draw_text_lines(str(active_prompt.footer), panel.position + Vector2(28, 252), 22.0, 14, Color(1.0, 0.88, 0.52, appear), 416)
-	var blink := 0.72 + 0.28 * sin(Time.get_ticks_msec() * 0.006)
-	draw_string(ThemeDB.fallback_font, panel.position + Vector2(158, 296), "Tap anywhere to continue", HORIZONTAL_ALIGNMENT_LEFT, 250, 13, Color(0.78, 1.0, 0.90, blink * appear))
+	var panel := PROMPT_PANEL
+
+	# Dim the garden behind so the card pops.
+	draw_rect(Rect2(0, 0, W, H), Color(0.01, 0.008, 0.03, 0.52 * appear), true)
+
+	# Soft breathing glow halo behind the card.
+	var breathe := 0.85 + 0.15 * sin(t * 1.8)
+	for i in range(4):
+		var grow_amt := 8.0 + float(i) * 9.0
+		var halo_a := (0.16 - float(i) * 0.035) * appear * breathe
+		draw_round_rect(panel.grow(grow_amt), 30.0 + float(i) * 6.0, Color(color.r, color.g, color.b, halo_a), true)
+
+	# Card body: warm deep indigo with a gentle top-to-bottom gradient feel.
+	draw_round_rect(panel.grow(2), 26, Color(color.r * 0.5, color.g * 0.5, color.b * 0.6, 0.30 * appear), true)
+	draw_round_rect(panel, 22, Color(0.06, 0.04, 0.12, 0.97 * appear), true)
+
+	# Top accent strip: warm golden band with the title color tinted in.
+	var strip := Rect2(panel.position.x + 14, panel.position.y + 14, panel.size.x - 28, 40)
+	draw_round_rect(strip, 16, Color(color.r * 0.35, color.g * 0.30, color.b * 0.45, 0.55 * appear), true)
+	# Tiny lantern icon dot on the strip.
+	draw_circle(Vector2(strip.position.x + 22, strip.get_center().y), 7.0, Color(1.0, 0.84, 0.40, 0.92 * appear))
+	draw_circle(Vector2(strip.position.x + 22, strip.get_center().y), 11.0, Color(1.0, 0.78, 0.36, 0.22 * appear))
+	draw_string(ThemeDB.fallback_font, Vector2(strip.position.x + 42, strip.get_center().y + 9), str(active_prompt.title), HORIZONTAL_ALIGNMENT_LEFT, strip.size.x - 56, 22, Color(1.0, 0.94, 0.80, appear))
+
+	# Body text.
+	_draw_text_lines(str(active_prompt.body), panel.position + Vector2(28, 82), 23.0, 15, Color(0.90, 0.86, 1.0, appear), panel.size.x - 56)
+
+	# Shimmering divider.
+	var div_a := (0.30 + 0.12 * sin(t * 2.5)) * appear
+	draw_rect(Rect2(panel.position + Vector2(28, 232), Vector2(panel.size.x - 56, 1.5)), Color(1.0, 0.84, 0.52, div_a), true)
+
+	# Footer text.
+	_draw_text_lines(str(active_prompt.footer), panel.position + Vector2(28, 258), 21.0, 14, Color(1.0, 0.86, 0.50, appear), panel.size.x - 56)
+
+	# "Got it!" button: pill-shaped, pulsing softly.
+	var btn := _prompt_button_rect()
+	var btn_pulse := 0.88 + 0.12 * sin(t * 3.0)
+	draw_round_rect(btn.grow(5), 22, Color(0.45, 1.0, 0.72, 0.18 * appear * btn_pulse), true)
+	draw_round_rect(btn, 18, Color(0.20, 0.55, 0.36, 0.95 * appear), true)
+	draw_round_rect(Rect2(btn.position, Vector2(btn.size.x, btn.size.y * 0.5)), 18, Color(0.30, 0.72, 0.48, 0.45 * appear), true)
+	draw_string(ThemeDB.fallback_font, btn.get_center() + Vector2(-26, 6), "Got it!", HORIZONTAL_ALIGNMENT_LEFT, 80, 16, Color(0.92, 1.0, 0.95, appear))
 
 func _draw_card_pulses() -> void:
 	for p in pulse_cards:
