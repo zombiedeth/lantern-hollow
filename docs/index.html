@@ -108,6 +108,58 @@ body {
 	text-align: center;
 	z-index: 1;
 }
+
+#lantern-audio-debug {
+	position: fixed;
+	left: max(8px, env(safe-area-inset-left));
+	top: max(8px, env(safe-area-inset-top));
+	z-index: 999999;
+	width: min(92vw, 390px);
+	max-height: 64vh;
+	overflow: auto;
+	box-sizing: border-box;
+	padding: 10px;
+	border: 1px solid rgba(255, 235, 170, 0.8);
+	border-radius: 12px;
+	background: rgba(10, 8, 4, 0.88);
+	color: #fff2bd;
+	font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+	touch-action: auto;
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+#lantern-audio-debug strong {
+	display: block;
+	font-size: 13px;
+	letter-spacing: 0.04em;
+	margin-bottom: 6px;
+	color: #fff8d6;
+}
+
+#lantern-audio-debug pre {
+	white-space: pre-wrap;
+	word-break: break-word;
+	margin: 7px 0;
+}
+
+#lantern-audio-debug button {
+	appearance: none;
+	border: 1px solid rgba(255, 235, 170, 0.85);
+	border-radius: 999px;
+	background: #ffe58a;
+	color: #1c1300;
+	font-weight: 800;
+	font-size: 12px;
+	padding: 7px 10px;
+	margin: 3px 4px 3px 0;
+}
+
+#lantern-audio-debug .tiny {
+	opacity: 0.78;
+	font-size: 11px;
+}
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
@@ -174,9 +226,30 @@ const engine = new Engine(GODOT_CONFIG);
 	audio.setAttribute('webkit-playsinline', '');
 	let started = false;
 	let attemptInFlight = false;
+	const debugState = window.LanternAudioDebugState = window.LanternAudioDebugState || {};
+	Object.assign(debugState, {
+		build: 'audio_debug_v16_panel',
+		musicSrc: MUSIC_SRC,
+		lastGesture: 'none yet',
+		lastUnlock: 'not attempted',
+		lastUnlockError: '',
+		lastBeep: 'not attempted',
+		lastBeepError: '',
+	});
+
+	['touchstart', 'touchend', 'pointerdown', 'mousedown', 'click'].forEach((eventName) => {
+		window.addEventListener(eventName, () => {
+			debugState.lastGesture = eventName + ' @ ' + new Date().toLocaleTimeString();
+		}, { capture: true, passive: true });
+	});
 
 	async function unlock(reason) {
-		if (started || attemptInFlight) return;
+		debugState.lastUnlock = 'attempting: ' + reason;
+		debugState.lastUnlockError = '';
+		if (started || attemptInFlight) {
+			debugState.lastUnlock = started ? 'already started: ' + reason : 'attempt already in flight: ' + reason;
+			return;
+		}
 		attemptInFlight = true;
 		try {
 			audio.muted = false;
@@ -184,9 +257,12 @@ const engine = new Engine(GODOT_CONFIG);
 			if (audio.readyState === 0) audio.load();
 			await audio.play();
 			started = true;
+			debugState.lastUnlock = 'SUCCESS: ' + reason;
 			console.log('LANTERN_NATIVE_AUDIO_STARTED', reason, audio.readyState, audio.currentSrc || MUSIC_SRC);
 		} catch (err) {
 			attemptInFlight = false;
+			debugState.lastUnlock = 'FAILED: ' + reason;
+			debugState.lastUnlockError = err ? ((err.name || 'Error') + ': ' + (err.message || String(err))) : 'unknown error';
 			console.warn('LANTERN_NATIVE_AUDIO_BLOCKED', reason, err && (err.name || err.message || err));
 		}
 	}
@@ -197,6 +273,125 @@ const engine = new Engine(GODOT_CONFIG);
 	});
 	document.addEventListener('visibilitychange', () => {
 		if (!document.hidden && started && audio.paused) audio.play().catch(() => {});
+	});
+})();
+
+// TEMPORARY iPhone audio diagnostics. Remove after the phone tells us what is
+// actually failing. This panel intentionally sits above the game and includes a
+// direct beep button that bypasses Godot + the music file.
+(function setupLanternAudioDebugPanel() {
+	function ready(fn) {
+		if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn, { once: true });
+		else fn();
+	}
+
+	ready(() => {
+		const panel = document.createElement('div');
+		panel.id = 'lantern-audio-debug';
+		panel.innerHTML = '<strong>🔊 TEMP AUDIO DEBUG</strong>' +
+			'<div><button id="lantern-debug-beep">TEST BEEP</button><button id="lantern-debug-music">TRY MUSIC</button><button id="lantern-debug-hide">HIDE</button></div>' +
+			'<pre id="lantern-debug-readout">booting…</pre>' +
+			'<div class="tiny">Screenshot this after tapping TEST BEEP. This panel is temporary.</div>';
+		document.body.appendChild(panel);
+
+		const readout = panel.querySelector('#lantern-debug-readout');
+		const debugState = window.LanternAudioDebugState = window.LanternAudioDebugState || {};
+		let beepCtx = null;
+
+		function describeAudioElement(audio) {
+			if (!audio) return 'music element: missing';
+			return [
+				'music.paused=' + audio.paused,
+				'music.muted=' + audio.muted,
+				'music.volume=' + audio.volume,
+				'music.readyState=' + audio.readyState,
+				'music.networkState=' + audio.networkState,
+				'music.currentTime=' + audio.currentTime.toFixed(2),
+				'music.duration=' + (Number.isFinite(audio.duration) ? audio.duration.toFixed(2) : String(audio.duration)),
+				'music.error=' + (audio.error ? (audio.error.code + ' ' + (audio.error.message || '')) : 'none'),
+				'music.src=' + (audio.currentSrc || audio.src || 'none'),
+			].join('\n');
+		}
+
+		function update() {
+			const audio = window.LanternNativeAudio && window.LanternNativeAudio.audio;
+			const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+			const navBits = [
+				'userAgent=' + navigator.userAgent,
+				'platform=' + (navigator.platform || 'unknown'),
+				'visibility=' + document.visibilityState,
+				'page=' + location.href,
+			];
+			readout.textContent = [
+				'build=' + (debugState.build || 'unknown'),
+				'audioContextSupport=' + !!AudioContextClass,
+				'beepCtx.state=' + (beepCtx ? beepCtx.state : 'not created'),
+				'lastGesture=' + (debugState.lastGesture || 'none'),
+				'lastUnlock=' + (debugState.lastUnlock || 'none'),
+				'lastUnlockError=' + (debugState.lastUnlockError || 'none'),
+				'lastBeep=' + (debugState.lastBeep || 'none'),
+				'lastBeepError=' + (debugState.lastBeepError || 'none'),
+				describeAudioElement(audio),
+				navBits.join('\n'),
+			].join('\n');
+		}
+
+		async function testBeep(reason) {
+			const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+			debugState.lastBeep = 'attempting: ' + reason;
+			debugState.lastBeepError = '';
+			try {
+				if (!AudioContextClass) throw new Error('No AudioContext/webkitAudioContext');
+				beepCtx = beepCtx || new AudioContextClass();
+				if (beepCtx.state !== 'running') await beepCtx.resume();
+				const osc = beepCtx.createOscillator();
+				const gain = beepCtx.createGain();
+				osc.type = 'square';
+				osc.frequency.value = 880;
+				gain.gain.setValueAtTime(0.0001, beepCtx.currentTime);
+				gain.gain.exponentialRampToValueAtTime(0.25, beepCtx.currentTime + 0.03);
+				gain.gain.exponentialRampToValueAtTime(0.0001, beepCtx.currentTime + 0.35);
+				osc.connect(gain).connect(beepCtx.destination);
+				osc.start();
+				osc.stop(beepCtx.currentTime + 0.38);
+				debugState.lastBeep = 'SUCCESS: ' + reason + ' / ctx=' + beepCtx.state;
+			} catch (err) {
+				debugState.lastBeep = 'FAILED: ' + reason;
+				debugState.lastBeepError = err ? ((err.name || 'Error') + ': ' + (err.message || String(err))) : 'unknown error';
+			}
+			update();
+		}
+
+		async function tryMusic(reason) {
+			const nativeAudio = window.LanternNativeAudio;
+			if (!nativeAudio) {
+				debugState.lastUnlock = 'FAILED: native audio object missing';
+				update();
+				return;
+			}
+			await nativeAudio.unlock(reason);
+			update();
+		}
+
+		panel.querySelector('#lantern-debug-beep').addEventListener('pointerdown', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			testBeep('debug pointerdown');
+		}, { capture: true });
+		panel.querySelector('#lantern-debug-music').addEventListener('pointerdown', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			tryMusic('debug music button');
+		}, { capture: true });
+		panel.querySelector('#lantern-debug-hide').addEventListener('pointerdown', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			panel.style.display = 'none';
+		}, { capture: true });
+
+		setInterval(update, 500);
+		update();
+		console.log('LANTERN_AUDIO_DEBUG_PANEL_READY');
 	});
 })();
 
