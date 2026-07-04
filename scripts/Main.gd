@@ -730,7 +730,9 @@ func _draw_seed_selector() -> void:
 		draw_arc(rect.get_center() + Vector2(0, -18), 34, 0, TAU, 44, data.color, 3.0)
 		_draw_tex_center(data.tex, rect.get_center() + Vector2(0, -24), Vector2(50, 54), data.color.lightened(0.2) if data.id in ["star", "nova", "sun"] else Color.WHITE)
 		draw_string(ThemeDB.fallback_font, rect.position + Vector2(8, 72), data.name, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 16, 12, Color.WHITE)
-		draw_string(ThemeDB.fallback_font, rect.position + Vector2(8, 94), "%d→%d" % [data.cost, int(round(float(data.payout) * _payout_multiplier()))], HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 16, 12, Color(1.0, 0.86, 0.48))
+		# Avoid the Unicode arrow here: Godot's web fallback font renders it as a
+		# missing-glyph box ("21/92") on iPhone Safari.
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(8, 94), "%d  /  %d" % [data.cost, int(round(float(data.payout) * _payout_multiplier()))], HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 16, 12, Color(1.0, 0.86, 0.48))
 
 func _seed_rect(i: int, visible_count: int) -> Rect2:
 	var button_w := W / float(visible_count)
