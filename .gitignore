@@ -1,0 +1,23 @@
+# Godot editor cache
+.godot/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Raw Godot export zip artifacts (keep build/web for Pages)
+*.zip
+
+# Desktop export binaries
+*.exe
+*.apk
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Python audio build cache
+__pycache__/
+*.pyc
