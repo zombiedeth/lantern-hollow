@@ -667,9 +667,14 @@ func _draw_plants() -> void:
 			draw_arc(p + Vector2(0, -18), 48, 0, TAU, 48, Color(1, 1, 1, 0.36), 2.0)
 
 func _draw_player() -> void:
-	draw_circle(player_pos + Vector2(0, 18), 32, Color(0.02, 0.01, 0.04, 0.30))
-	draw_circle(player_pos, 56, Color(1.0, 0.85, 0.32, 0.18))
+	var t := Time.get_ticks_msec() * 0.001
+	var pulse := 0.5 + 0.5 * sin(t * 2.1)
+	draw_circle(player_pos + Vector2(0, 18), 34, Color(0.02, 0.01, 0.04, 0.32))
+	draw_circle(player_pos, 78 + 5 * pulse, Color(1.0, 0.70, 0.22, 0.055))
+	draw_circle(player_pos, 58 + 3 * pulse, Color(1.0, 0.85, 0.32, 0.16))
+	draw_circle(player_pos + Vector2(0, -8), 34 + 2 * pulse, Color(0.75, 0.92, 1.0, 0.08))
 	_draw_tex_center(TEX_SPIRIT, player_pos + Vector2(0, -14), Vector2(74, 78), Color.WHITE)
+	draw_arc(player_pos + Vector2(0, -6), 46 + 2 * pulse, -PI * 0.15, TAU - PI * 0.15, 64, Color(1.0, 0.90, 0.56, 0.18), 2.0)
 
 func _draw_fairy_helpers() -> void:
 	if sprite_helpers <= 0:
