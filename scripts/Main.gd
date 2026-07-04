@@ -377,7 +377,9 @@ func _plant_plot(plot_idx: int, kind: int, automatic: bool) -> bool:
 		return false
 	coins -= selected.cost
 	plants[plot_idx] = {"kind": kind, "planted_at": Time.get_ticks_msec() / 1000.0}
-	_spawn_sparkles(_plot_pos(plot_idx), selected.color, 12)
+	var burst_pos := _plot_pos(plot_idx)
+	_spawn_sparkles(burst_pos, selected.color, 22)
+	tap_rings.append({"pos": burst_pos, "age": 0.0, "color": selected.color.lightened(0.18), "scale": 0.95})
 	_play_sfx("fairy" if automatic else "plant")
 	if automatic:
 		_flash("Fairies planted %s" % selected.name)
@@ -496,7 +498,11 @@ func _harvest_plot(plot_idx: int, automatic: bool) -> void:
 	var gained := int(round(float(data.payout) * _payout_multiplier()))
 	coins += gained
 	plants.erase(plot_idx)
-	_spawn_sparkles(_plot_pos(plot_idx), data.color, 28)
+	var burst_pos := _plot_pos(plot_idx)
+	_spawn_sparkles(burst_pos, data.color, 44)
+	_spawn_sparkles(burst_pos + Vector2(0, -18), Color(1.0, 0.92, 0.55), 18)
+	tap_rings.append({"pos": burst_pos, "age": 0.0, "color": data.color.lightened(0.25), "scale": 1.35})
+	tap_rings.append({"pos": burst_pos + Vector2(0, -18), "age": 0.0, "color": Color(1.0, 0.92, 0.55), "scale": 0.82})
 	_play_sfx("fairy" if automatic else "harvest")
 	if automatic:
 		beams.append({"from": _fairy_pos(plot_idx), "to": _plot_pos(plot_idx), "age": 0.0, "color": data.color})
@@ -719,7 +725,10 @@ func _draw_sparkles() -> void:
 func _draw_tap_rings() -> void:
 	for r in tap_rings:
 		var a := 1.0 - float(r.age) / 0.55
-		draw_arc(r.pos, 12.0 + 42.0 * (1.0 - a), 0.0, TAU, 48, Color(1.0, 0.86, 0.42, a), 4.0)
+		var color: Color = r.get("color", Color(1.0, 0.86, 0.42))
+		var scale: float = float(r.get("scale", 1.0))
+		draw_circle(r.pos, 12.0 * scale * a, Color(color.r, color.g, color.b, 0.18 * a))
+		draw_arc(r.pos, (12.0 + 48.0 * (1.0 - a)) * scale, 0.0, TAU, 56, Color(color.r, color.g, color.b, 0.92 * a), 4.0 * scale)
 
 func _draw_ui() -> void:
 	draw_round_rect(Rect2(14, 14, 250, 84), 18, Color(0.035, 0.025, 0.075, 0.84), true)
