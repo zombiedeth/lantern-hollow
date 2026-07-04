@@ -593,10 +593,9 @@ func _draw() -> void:
 	var s := _stage_scale()
 	draw_set_transform(Vector2.ZERO, 0.0, s)
 	_draw_background()
-	_draw_fireflies()
 	_draw_plot_targets()
-	draw_plants()
-	draw_player()
+	_draw_plants()
+	_draw_player()
 	_draw_fairy_helpers()
 	_draw_beams()
 	_draw_sparkles()
@@ -937,22 +936,3 @@ func draw_round_rect(rect: Rect2, radius: float, color: Color, filled: bool = tr
 		var a := PI + (PI / 2.0) * float(i) / float(n)
 		pts.append(Vector2(p.x + r + cos(a) * r, p.y + r + sin(a) * r))
 	draw_colored_polygon(pts, color)
-
-# === FX: fireflies (FX 1 of N) ===
-# Small drifting golden glows in the upper half. Pure draw_circle calls.
-# Disable by changing FIREFLIES_ENABLED to false (and re-exporting once).
-const FIREFLIES_ENABLED := true
-const FIREFLY_COUNT := 12
-func _draw_fireflies() -> void:
-	if not FIREFLIES_ENABLED:
-		return
-	var t := Time.get_ticks_msec() / 1000.0
-	for i in range(FIREFLY_COUNT):
-		var seed := float(i) * 7.31
-		var x := W * 0.5 + sin(t * 0.18 + seed) * (180.0 + 30.0 * sin(t * 0.07 + seed))
-		var y := 300.0 + cos(t * 0.23 + seed * 1.3) * 180.0 + sin(t * 0.4 + seed) * 18.0
-		var breathe := 0.5 + 0.5 * sin(t * 1.6 + seed * 0.7)
-		var hot := Color(1.0, 0.84, 0.40)
-		draw_circle(Vector2(x, y), 9.0, Color(hot.r, hot.g, hot.b, 0.18 + 0.18 * breathe))
-		draw_circle(Vector2(x, y), 5.0, Color(hot.r, hot.g, hot.b, 0.35 + 0.25 * breathe))
-		draw_circle(Vector2(x, y), 2.2, Color(1.0, 0.96, 0.78, 0.55 + 0.30 * breathe))
