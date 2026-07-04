@@ -15,6 +15,13 @@ const PLAYER_SPEED := 520.0
 # Web-safe atmosphere toggles. Each feature ships in its own commit.
 const ATM_FIREFLIES_ENABLED := true
 const ATM_FIREFLY_COUNT := 12
+const ATM_DUST_ENABLED := true
+const ATM_DUST_COUNT := 34
+const ATM_GARDEN_EDGE_GLOW_ENABLED := true
+const ATM_BLOOM_READY_PULSE_ENABLED := true
+const ATM_FAIRY_TRAILS_ENABLED := true
+const ATM_UPGRADE_GLOWS_ENABLED := true
+const ATM_ASCENSION_WAVE_ENABLED := true
 
 const BG := preload("res://assets/generated/lantern_hollow_bg.png")
 const TEX_SPIRIT := preload("res://assets/generated/sprites/spirit.png")
@@ -603,7 +610,9 @@ func _draw() -> void:
 	var s := _stage_scale()
 	draw_set_transform(Vector2.ZERO, 0.0, s)
 	_draw_background()
+	_draw_garden_edge_glow()
 	_draw_fireflies()
+	_draw_magic_dust()
 	_draw_plot_targets()
 	_draw_plants()
 	_draw_player()
@@ -629,6 +638,35 @@ func _draw_fireflies() -> void:
 		var glow := Color(1.0, 0.82, 0.36)
 		draw_circle(Vector2(x, y), 7.0, Color(glow.r, glow.g, glow.b, 0.16 + 0.12 * breathe))
 		draw_circle(Vector2(x, y), 3.2, Color(1.0, 0.94, 0.68, 0.42 + 0.24 * breathe))
+
+func _draw_garden_edge_glow() -> void:
+	if not ATM_GARDEN_EDGE_GLOW_ENABLED:
+		return
+	var t := Time.get_ticks_msec() * 0.001
+	var breathe := 0.5 + 0.5 * sin(t * 0.55)
+	draw_rect(Rect2(0, 112, 48, 590), Color(0.19, 0.06, 0.28, 0.12 + 0.05 * breathe), true)
+	draw_rect(Rect2(W - 48, 112, 48, 590), Color(0.19, 0.06, 0.28, 0.12 + 0.05 * breathe), true)
+	draw_rect(Rect2(0, 110, W, 32), Color(0.45, 0.24, 0.08, 0.04 + 0.025 * breathe), true)
+	for i in range(5):
+		var y := 170.0 + float(i) * 98.0 + sin(t * 0.7 + float(i)) * 10.0
+		var c := Color(0.95, 0.38, 1.0, 0.045 + 0.025 * sin(t * 0.8 + float(i) * 1.3))
+		draw_circle(Vector2(24, y), 38.0 + 4.0 * breathe, c)
+		draw_circle(Vector2(W - 24, y + 22.0), 34.0 + 3.0 * breathe, c)
+
+func _draw_magic_dust() -> void:
+	if not ATM_DUST_ENABLED:
+		return
+	var t := Time.get_ticks_msec() * 0.001
+	for i in range(ATM_DUST_COUNT):
+		var seed := float(i) * 19.17
+		var lane := fposmod(seed * 0.137, 1.0)
+		var x := 28.0 + lane * (W - 56.0) + sin(t * 0.23 + seed) * 14.0
+		var y := 122.0 + fposmod(seed + t * (11.0 + float(i % 5) * 2.2), 600.0)
+		var twinkle := 0.45 + 0.55 * sin(t * 1.65 + seed)
+		var r := 1.1 + float(i % 3) * 0.45 + twinkle * 0.55
+		var col := Color(0.95, 0.88, 1.0, 0.10 + 0.10 * twinkle)
+		draw_circle(Vector2(x, y), r + 3.0, Color(col.r, col.g, col.b, col.a * 0.16))
+		draw_circle(Vector2(x, y), r, col)
 
 func _draw_background() -> void:
 	draw_texture_rect(BG, Rect2(0, 0, W, H), false)
@@ -666,8 +704,18 @@ func _draw_plants() -> void:
 		elif stage == 1:
 			_draw_tex_center(TEX_SPROUT, p + Vector2(0, -12), Vector2(56, 54), Color.WHITE)
 			draw_arc(p, 36, -PI / 2.0, -PI / 2.0 + TAU * ratio, 32, data.color, 4.0)
+			if ATM_BLOOM_READY_PULSE_ENABLED and ratio > 0.80:
+				var almost := clampf((ratio - 0.80) / 0.20, 0.0, 1.0)
+				draw_circle(p + Vector2(0, -12), 42.0 + 7.0 * almost, Color(data.color.r, data.color.g, data.color.b, 0.18 * almost))
+				draw_arc(p + Vector2(0, -12), 45.0 + 5.0 * almost, 0.0, TAU, 48, Color(1.0, 0.92, 0.58, 0.32 * almost), 2.0)
 		else:
-			var pulse := 1.0 + sin(Time.get_ticks_msec() * 0.006 + float(i)) * 0.05
+			var t := Time.get_ticks_msec() * 0.001
+			var pulse := 1.0 + sin(t * 6.0 + float(i)) * 0.05
+			var ready_breathe := 0.5 + 0.5 * sin(t * 3.2 + float(i))
+			if ATM_BLOOM_READY_PULSE_ENABLED:
+				draw_circle(p + Vector2(0, -18), 66.0 + ready_breathe * 8.0, Color(data.color.r, data.color.g, data.color.b, 0.08 + 0.06 * ready_breathe))
+				draw_arc(p + Vector2(0, -18), 54.0 + ready_breathe * 5.0, 0.0, TAU, 56, Color(1.0, 0.91, 0.58, 0.42 + 0.18 * ready_breathe), 2.5)
+				draw_string(ThemeDB.fallback_font, p + Vector2(-22, -72), "READY", HORIZONTAL_ALIGNMENT_LEFT, 52, 10, Color(1.0, 0.90, 0.48, 0.76 + 0.20 * ready_breathe))
 			draw_circle(p + Vector2(0, -16), 43 * pulse, Color(data.color.r, data.color.g, data.color.b, 0.26))
 			_draw_tex_center(data.tex, p + Vector2(0, -28), Vector2(78, 94), data.color.lightened(0.2) if data.id in ["star", "nova", "sun"] else Color.WHITE)
 			draw_arc(p + Vector2(0, -18), 48, 0, TAU, 48, Color(1, 1, 1, 0.36), 2.0)
@@ -690,6 +738,11 @@ func _draw_fairy_helpers() -> void:
 		var pos := _fairy_pos(i)
 		var t := Time.get_ticks_msec() / 1000.0
 		var fairy_color := Color(0.70 + 0.20 * sin(float(i)), 1.0, 0.78 + 0.18 * cos(float(i)), 0.95)
+		if ATM_FAIRY_TRAILS_ENABLED:
+			for j in range(3):
+				var lag := float(j + 1)
+				var drift := Vector2(cos(t * 2.4 + float(i) + lag), sin(t * 2.0 + float(i) * 0.7 + lag)) * (7.0 + lag * 5.0)
+				draw_circle(pos - drift, 4.0 - lag * 0.65, Color(fairy_color.r, fairy_color.g, fairy_color.b, 0.18 - lag * 0.035))
 		draw_circle(pos, 18, Color(fairy_color.r, fairy_color.g, fairy_color.b, 0.17))
 		var flap := sin(t * 12.0 + float(i))
 		draw_circle(pos + Vector2(-7, -2 + flap * 2.5), 5.5, Color(0.85, 1.0, 1.0, 0.55))
@@ -714,8 +767,17 @@ func _fairy_pos(i: int) -> Vector2:
 func _draw_beams() -> void:
 	for b in beams:
 		var a := 1.0 - float(b.age) / 0.45
-		draw_line(b.from, b.to, Color(b.color.r, b.color.g, b.color.b, 0.50 * a), 3.0, true)
-		draw_circle(b.to, 18.0 * a, Color(b.color.r, b.color.g, b.color.b, 0.28 * a))
+		var from_pos: Vector2 = b.from
+		var to_pos: Vector2 = b.to
+		var beam_color: Color = b.color
+		if ATM_FAIRY_TRAILS_ENABLED:
+			for i in range(1, 4):
+				var k := float(i) / 4.0
+				var shimmer: Vector2 = from_pos.lerp(to_pos, k)
+				var wave := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.012 + k * TAU)
+				draw_circle(shimmer, 7.0 + 3.0 * wave, Color(beam_color.r, beam_color.g, beam_color.b, 0.15 * a))
+		draw_line(from_pos, to_pos, Color(beam_color.r, beam_color.g, beam_color.b, 0.50 * a), 3.0, true)
+		draw_circle(to_pos, 18.0 * a, Color(beam_color.r, beam_color.g, beam_color.b, 0.28 * a))
 
 func _draw_sparkles() -> void:
 	for s in sparkles:
@@ -782,6 +844,20 @@ func _draw_upgrade_strip() -> void:
 			sub = "%d glow - dust" % _ascend_cost()
 			color = Color(1.0, 0.58, 0.95)
 		var bg := Color(color.r * 0.16, color.g * 0.16, color.b * 0.16, 0.88)
+		if ATM_UPGRADE_GLOWS_ENABLED:
+			var glow_on := false
+			if i == 0:
+				glow_on = lantern_level > 0 or coins >= _lantern_cost()
+			elif i == 1:
+				var next_cost := _moonwell_cost() if not moonwell_unlocked else (_constellarium_cost() if not constellarium_unlocked else 999999999)
+				glow_on = moonwell_unlocked or constellarium_unlocked or coins >= next_cost
+			elif i == 2:
+				glow_on = sprite_helpers > 0 or coins >= _sprite_cost()
+			else:
+				glow_on = ascensions > 0 or coins >= _ascend_cost()
+			if glow_on:
+				var card_pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.0025 + float(i))
+				draw_round_rect(rect.grow(4.0 + card_pulse * 3.0), 20, Color(color.r, color.g, color.b, 0.08 + 0.06 * card_pulse), true)
 		draw_round_rect(rect, 14, bg, true)
 		draw_arc(rect.position + Vector2(22, 28), 18, 0, TAU, 28, color, 3.0)
 		if i == 0:
@@ -900,8 +976,21 @@ func _draw_ascension_fx() -> void:
 	if ascension_fx <= 0.0:
 		return
 	var a := ascension_fx / 2.8
-	draw_circle(Vector2(270, 390), 290.0 * (1.0 - a), Color(1.0, 0.50, 0.95, 0.10 * a))
-	draw_arc(Vector2(270, 390), 130.0 + 80.0 * (1.0 - a), 0, TAU, 80, Color(1.0, 0.72, 1.0, 0.55 * a), 5.0)
+	if ATM_ASCENSION_WAVE_ENABLED:
+		var center := Vector2(270, 390)
+		draw_circle(center, 320.0 * (1.0 - a), Color(1.0, 0.50, 0.95, 0.12 * a))
+		for i in range(4):
+			var k := float(i) / 4.0
+			var radius := 90.0 + 250.0 * (1.0 - a) + k * 34.0
+			var alpha := (0.46 - k * 0.08) * a
+			draw_arc(center, radius, 0, TAU, 96, Color(1.0, 0.72 + k * 0.05, 1.0, alpha), 5.0 - k * 0.55)
+		for i in range(14):
+			var ang := float(i) * TAU / 14.0 + (1.0 - a) * 1.7
+			var pos := center + Vector2(cos(ang), sin(ang)) * (80.0 + 220.0 * (1.0 - a))
+			draw_circle(pos, 4.0 + 4.0 * a, Color(1.0, 0.90, 0.56, 0.32 * a))
+	else:
+		draw_circle(Vector2(270, 390), 290.0 * (1.0 - a), Color(1.0, 0.50, 0.95, 0.10 * a))
+		draw_arc(Vector2(270, 390), 130.0 + 80.0 * (1.0 - a), 0, TAU, 80, Color(1.0, 0.72, 1.0, 0.55 * a), 5.0)
 
 func _draw_text_lines(text: String, pos: Vector2, line_height: float, font_size: int, color: Color, width: float) -> void:
 	var y := pos.y
