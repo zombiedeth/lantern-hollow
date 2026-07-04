@@ -54,7 +54,7 @@ class PlantData:
 var catalog: Array[PlantData]
 var selected_index := 0
 var coins := 12
-var message := "Welcome! Tap a dirt bed to plant Sparkbuds. Harvest blooms for glow."
+var message := "Tap an empty bed to plant. Tap a full bloom to harvest glow."
 var message_timer := 0.0
 
 # Progression state.
@@ -108,7 +108,7 @@ func _ready() -> void:
 	# Do not force the viewport to 540x960 here. Web/mobile shells provide
 	# the real canvas size; _draw() scales the 540x960 stage to fill it.
 	_setup_audio()
-	_show_big_prompt("Lantern Hollow", "Plant seeds. Harvest blooms. Buy upgrades.\nEmberlilies lead to Moonwell, Moonwell leads to Starvine,\nand Ascension turns huge glow into permanent Stardust.", "Tap beds to begin.")
+	_show_big_prompt("How to play", "1. Choose a flower at the bottom.\n2. Tap an empty bed to plant.\n3. Tap a full bloom to harvest glow.\n4. Buy upgrades, then Ascend for Stardust.", "First goal: plant Sparkbuds until you can afford Moonblossom.")
 	set_process(true)
 	queue_redraw()
 
@@ -251,16 +251,16 @@ func _update_auto_systems(delta: float) -> void:
 func _update_guidance() -> void:
 	if not seen_lantern_hint and coins >= _lantern_cost():
 		seen_lantern_hint = true
-		_show_big_prompt("New upgrade: Lantern", "Lanterns speed up every crop.\nBuy these when waiting starts to feel slow.", "Tap the Lantern card above the seed bar.")
+		_show_big_prompt("Upgrade available: Lantern", "Lanterns make every planted flower grow faster.\nBuy one whenever crops feel slow or you are waiting around.", "Tap the Lantern card in the upgrade row.")
 	if not seen_moonwell_hint and coins >= _moonwell_cost() and not moonwell_unlocked:
 		seen_moonwell_hint = true
-		_show_big_prompt("Next milestone: Moonwell", "Moonwell unlocks Starvine, the first big crop above Emberlily.\nThis is your first real progression gate.", "Save 120 glow, then tap Moonwell.")
+		_show_big_prompt("Next unlock: Moonwell", "Moonwell opens the next tier of flowers: Starvine.\nStarvine earns much more glow than Emberlily, so this is your first big goal.", "Save 120 glow, then tap the Moonwell card.")
 	if moonwell_unlocked and not seen_constellarium_hint and coins >= _constellarium_cost() and not constellarium_unlocked:
 		seen_constellarium_hint = true
-		_show_big_prompt("Stars are waking", "The Constellarium unlocks Nova Lotus,\na crop made for late-game fairy gardens.", "Tap the Stars card when you have 1200 glow.")
+		_show_big_prompt("Next unlock: Constellarium", "The Constellarium unlocks Nova Lotus.\nNova Lotus is expensive, slow, and powerful. Use it to reach Ascension.", "Save 1200 glow, then tap the Stars card.")
 	if constellarium_unlocked and not seen_ascend_hint and coins >= 3000:
 		seen_ascend_hint = true
-		_show_big_prompt("Ascension is near", "Ascension resets your garden, but gives Stardust.\nStardust permanently boosts payouts and growth.", "At 6500 glow, tap Ascend.")
+		_show_big_prompt("Ascension is near", "Ascension resets flowers and upgrades, but gives Stardust.\nStardust is permanent: every future run pays more and grows faster.", "At 6500 glow, tap Ascend.")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -340,7 +340,7 @@ func _buy_upgrade(idx: int) -> void:
 		_add_pulse(_upgrade_rect(idx), Color(1.0, 0.78, 0.28))
 		_spawn_sparkles(_upgrade_rect(idx).get_center(), Color(1.0, 0.78, 0.28), 28)
 		_play_sfx("upgrade")
-		_show_big_prompt("Lantern upgraded", "All crops grow faster.\nThis reduces waiting and makes expensive crops less painful.", "Lantern level %d" % lantern_level)
+		_show_big_prompt("Lantern upgraded", "Every flower now grows faster.\nThis stacks, so more Lantern levels mean less waiting between harvests.", "Lantern level %d active." % lantern_level)
 	elif idx == 1:
 		if not moonwell_unlocked:
 			var cost := _moonwell_cost()
@@ -353,7 +353,7 @@ func _buy_upgrade(idx: int) -> void:
 			_add_pulse(_upgrade_rect(idx), Color(0.72, 0.70, 1.0))
 			_spawn_sparkles(_upgrade_rect(idx).get_center(), Color(0.72, 0.70, 1.0), 40)
 			_play_sfx("upgrade")
-			_show_big_prompt("Moonwell built", "Starvine is unlocked.\nStarvine is the crop that moves you beyond Emberlily farming.", "Plant Starvine from the seed bar.")
+			_show_big_prompt("Moonwell built", "Starvine is now unlocked in the flower bar.\nIt costs more than Emberlily, but pays much more glow per harvest.", "Select Starvine, plant it, then save for Stars.")
 			return
 		if not constellarium_unlocked:
 			var cost := _constellarium_cost()
@@ -366,7 +366,7 @@ func _buy_upgrade(idx: int) -> void:
 			_add_pulse(_upgrade_rect(idx), Color(0.55, 1.0, 0.95))
 			_spawn_sparkles(Vector2(270, 410), Color(0.55, 1.0, 0.95), 70)
 			_play_sfx("upgrade")
-			_show_big_prompt("Constellarium lit", "Nova Lotus is unlocked.\nThis is your bridge from normal glow economy into Ascension.", "Grow Nova Lotus, then save for Ascension.")
+			_show_big_prompt("Constellarium lit", "Nova Lotus is now unlocked.\nUse Nova Lotus harvests to climb from normal upgrades into your first Ascension.", "Plant Nova Lotus, then save 6500 glow.")
 			return
 		_flash("Constellarium is active. Save glow for Ascension.")
 	elif idx == 2:
@@ -381,7 +381,7 @@ func _buy_upgrade(idx: int) -> void:
 		_play_sfx("fairy")
 		if _auto_plant_unlocked() and not seen_auto_plant_hint:
 			seen_auto_plant_hint = true
-			_show_big_prompt("Fairies learned to plant", "Ascend 2 unlocks auto-planting.\nYour fairies now fill empty beds with the selected crop when you can afford it.", "Choose a seed, then let them help.")
+			_show_big_prompt("Fairies learned to plant", "Because you reached Ascension II, fairies can plant too.\nThey fill empty beds with your selected flower when you have enough glow.", "Choose the flower you want automated.")
 		else:
 			_flash("Fairy Helper %d: auto-harvests blooms" % sprite_helpers)
 	elif idx == 3:
@@ -405,15 +405,15 @@ func _buy_upgrade(idx: int) -> void:
 		_spawn_sparkles(Vector2(270, 390), Color(1.0, 0.55, 0.95), 120)
 		_play_sfx("ascend")
 		if ascensions == 1:
-			_show_big_prompt("Ascension I", "+%d Stardust earned.\nSunseed is unlocked. Stardust boosts all payouts and growth forever." % earned, "Rebuild faster with Sunseed.")
+			_show_big_prompt("Ascension I complete", "+%d Stardust earned.\nSunseed is unlocked. Stardust is permanent, so all future flowers pay more and grow faster." % earned, "Rebuild with Sunseed and reach Ascension II.")
 		elif ascensions == 2:
 			seen_auto_plant_hint = true
-			_show_big_prompt("Ascension II", "+%d Stardust earned.\nFairies can now auto-plant the selected seed into empty beds." % earned, "Buy fairies, pick a seed, and watch them garden.")
+			_show_big_prompt("Ascension II complete", "+%d Stardust earned.\nFairies can now auto-plant your selected flower into empty beds." % earned, "Buy fairies, pick a flower, and let them garden.")
 		elif ascensions == 3:
 			seen_orchard_hint = true
-			_show_big_prompt("Ascension III", "+%d Stardust earned.\nNebula Orchard unlocked: ten extra side beds appear." % earned, "More beds means bigger fairy gardens.")
+			_show_big_prompt("Ascension III complete", "+%d Stardust earned.\nNebula Orchard unlocked: ten extra side beds now appear on the garden edges." % earned, "More beds means bigger fairy-powered gardens.")
 		else:
-			_show_big_prompt("Ascension %d" % ascensions, "+%d Stardust earned.\nEach Ascension makes every future loop richer and faster." % earned, "Keep stacking dust or chase a bigger garden.")
+			_show_big_prompt("Ascension %d complete" % ascensions, "+%d Stardust earned.\nEach Ascension makes future loops richer, faster, and easier to automate." % earned, "Keep stacking Stardust for bigger numbers.")
 
 func _auto_harvest_one() -> void:
 	for key in plants.keys():
@@ -444,9 +444,9 @@ func _harvest_plot(plot_idx: int, automatic: bool) -> void:
 	_play_sfx("fairy" if automatic else "harvest")
 	if automatic:
 		beams.append({"from": _fairy_pos(plot_idx), "to": _plot_pos(plot_idx), "age": 0.0, "color": data.color})
-		_flash("Fairy harvested %s +%d" % [data.name, gained])
+		_flash("Fairy harvested %s: +%d glow" % [data.name, gained])
 	else:
-		_flash("Harvested %s +%d glow" % [data.name, gained])
+		_flash("Harvested %s: +%d glow" % [data.name, gained])
 
 func _visible_catalog_size() -> int:
 	if ascensions > 0:
@@ -524,7 +524,7 @@ func _flash(text: String) -> void:
 	message_timer = 2.5
 
 func _show_big_prompt(title: String, body: String, footer: String) -> void:
-	message = "%s — %s" % [title, footer]
+	message = footer
 	message_timer = 4.0
 	active_prompt = {"age": 0.0, "title": title, "body": body, "footer": footer, "color": Color(0.86, 0.78, 1.0)}
 
@@ -664,16 +664,16 @@ func _draw_ui() -> void:
 
 func _next_goal_text() -> String:
 	if not moonwell_unlocked:
-		return "Goal: build Moonwell (120)"
+		return "Next: save 120 glow for Moonwell"
 	if not constellarium_unlocked:
-		return "Goal: light Stars (1200)"
+		return "Next: save 1200 glow for Stars"
 	if ascensions == 0:
-		return "Goal: Ascend (6500)"
+		return "Next: save 6500 glow to Ascend"
 	if ascensions == 1:
-		return "Goal: Ascend II = auto-plant"
+		return "Next: Ascend II unlocks auto-plant"
 	if ascensions == 2:
-		return "Goal: Ascend III = +10 beds"
-	return "Goal: stack Stardust"
+		return "Next: Ascend III adds 10 beds"
+	return "Next: stack Stardust"
 
 func _draw_upgrade_strip() -> void:
 	for i in range(4):
@@ -683,19 +683,19 @@ func _draw_upgrade_strip() -> void:
 		var color := Color(1.0, 0.82, 0.30)
 		if i == 0:
 			label = "Lantern %d" % lantern_level
-			sub = "%d faster" % _lantern_cost()
+			sub = "%d glow - speed" % _lantern_cost()
 			color = Color(1.0, 0.78, 0.28)
 		elif i == 1:
 			label = "Moonwell" if not moonwell_unlocked else "Stars"
-			sub = "%d Starvine" % _moonwell_cost() if not moonwell_unlocked else ("%d Nova" % _constellarium_cost() if not constellarium_unlocked else "Nova online")
+			sub = "%d glow - Starvine" % _moonwell_cost() if not moonwell_unlocked else ("%d glow - Nova" % _constellarium_cost() if not constellarium_unlocked else "Nova unlocked")
 			color = Color(0.72, 0.70, 1.0)
 		elif i == 2:
 			label = "Fairies %d" % sprite_helpers
-			sub = "%d harvest" % _sprite_cost() if not _auto_plant_unlocked() else "%d plant+harv" % _sprite_cost()
+			sub = "%d glow - harvest" % _sprite_cost() if not _auto_plant_unlocked() else "%d glow - plant" % _sprite_cost()
 			color = Color(0.62, 1.0, 0.78)
 		else:
 			label = "Ascend %d" % ascensions
-			sub = "%d dust" % _ascend_cost()
+			sub = "%d glow - dust" % _ascend_cost()
 			color = Color(1.0, 0.58, 0.95)
 		var bg := Color(color.r * 0.16, color.g * 0.16, color.b * 0.16, 0.88)
 		draw_round_rect(rect, 14, bg, true)
@@ -719,6 +719,7 @@ func _upgrade_rect(i: int) -> Rect2:
 
 func _draw_seed_selector() -> void:
 	draw_round_rect(Rect2(0, 820, W, 140), 24, Color(0.035, 0.025, 0.075, 0.94), true)
+	draw_string(ThemeDB.fallback_font, Vector2(18, 836), "Flowers: tap to choose.  Cost / harvest shown below each flower.", HORIZONTAL_ALIGNMENT_LEFT, 504, 10, Color(0.88, 0.86, 1.0, 0.72))
 	var visible_count := _visible_catalog_size()
 	for i in range(visible_count):
 		var data := catalog[i]
@@ -745,17 +746,19 @@ func _draw_active_prompt() -> void:
 	var age := float(active_prompt.get("age", 0.0))
 	var appear := clampf(age / 0.18, 0.0, 1.0)
 	# Dim the game behind the explanation so it reads like an actual tutorial modal.
-	draw_rect(Rect2(0, 0, W, H), Color(0.015, 0.01, 0.035, 0.44 * appear), true)
-	var panel := Rect2(34, 118, 472, 198)
+	draw_rect(Rect2(0, 0, W, H), Color(0.015, 0.01, 0.035, 0.48 * appear), true)
+	var panel := Rect2(34, 94, 472, 318)
 	var color: Color = active_prompt.color
-	draw_round_rect(panel, 26, Color(0.035, 0.025, 0.075, 0.94 * appear), true)
-	draw_round_rect(panel.grow(3), 28, Color(color.r, color.g, color.b, 0.18 * appear), true)
-	draw_arc(panel.position + Vector2(36, 38), 25, 0, TAU, 34, color, 3.0)
-	draw_string(ThemeDB.fallback_font, panel.position + Vector2(76, 43), str(active_prompt.title), HORIZONTAL_ALIGNMENT_LEFT, 360, 25, Color(1, 1, 1, appear))
-	draw_string(ThemeDB.fallback_font, panel.position + Vector2(30, 88), str(active_prompt.body), HORIZONTAL_ALIGNMENT_LEFT, 412, 16, Color(0.92, 0.88, 1.0, appear))
-	draw_string(ThemeDB.fallback_font, panel.position + Vector2(30, 156), str(active_prompt.footer), HORIZONTAL_ALIGNMENT_LEFT, 412, 15, Color(1.0, 0.88, 0.52, appear))
+	# Clean card shape: no decorative corner blobs. Rectangles read better on iPhone.
+	draw_rect(panel.grow(4), Color(color.r, color.g, color.b, 0.22 * appear), true)
+	draw_rect(panel, Color(0.035, 0.025, 0.075, 0.96 * appear), true)
+	draw_rect(Rect2(panel.position, Vector2(8, panel.size.y)), Color(color.r, color.g, color.b, 0.72 * appear), true)
+	draw_string(ThemeDB.fallback_font, panel.position + Vector2(28, 42), str(active_prompt.title), HORIZONTAL_ALIGNMENT_LEFT, 416, 25, Color(1, 1, 1, appear))
+	_draw_text_lines(str(active_prompt.body), panel.position + Vector2(28, 82), 25.0, 15, Color(0.92, 0.88, 1.0, appear), 416)
+	draw_rect(Rect2(panel.position + Vector2(24, 224), Vector2(424, 1)), Color(1.0, 0.86, 0.52, 0.25 * appear), true)
+	_draw_text_lines(str(active_prompt.footer), panel.position + Vector2(28, 252), 22.0, 14, Color(1.0, 0.88, 0.52, appear), 416)
 	var blink := 0.72 + 0.28 * sin(Time.get_ticks_msec() * 0.006)
-	draw_string(ThemeDB.fallback_font, panel.position + Vector2(144, 185), "Tap anywhere to continue", HORIZONTAL_ALIGNMENT_LEFT, 230, 14, Color(0.78, 1.0, 0.90, blink * appear))
+	draw_string(ThemeDB.fallback_font, panel.position + Vector2(158, 296), "Tap anywhere to continue", HORIZONTAL_ALIGNMENT_LEFT, 250, 13, Color(0.78, 1.0, 0.90, blink * appear))
 
 func _draw_card_pulses() -> void:
 	for p in pulse_cards:
@@ -766,11 +769,12 @@ func _draw_card_pulses() -> void:
 			draw_round_rect(rect, 20, Color(p.color.r, p.color.g, p.color.b, 0.26 * a), true)
 		elif p.kind == "prompt":
 			var panel := Rect2(38, 130, 464, 142)
-			draw_round_rect(panel, 24, Color(0.035, 0.025, 0.075, 0.88 * minf(1.0, a + 0.25)), true)
-			draw_arc(panel.position + Vector2(32, 34), 24, 0, TAU, 32, p.color, 3.0)
-			draw_string(ThemeDB.fallback_font, panel.position + Vector2(70, 38), p.title, HORIZONTAL_ALIGNMENT_LEFT, 360, 24, Color.WHITE)
-			draw_string(ThemeDB.fallback_font, panel.position + Vector2(28, 78), p.body, HORIZONTAL_ALIGNMENT_LEFT, 410, 15, Color(0.92, 0.88, 1.0))
-			draw_string(ThemeDB.fallback_font, panel.position + Vector2(28, 124), p.footer, HORIZONTAL_ALIGNMENT_LEFT, 410, 14, Color(1.0, 0.88, 0.52))
+			draw_rect(panel.grow(3), Color(p.color.r, p.color.g, p.color.b, 0.18 * minf(1.0, a + 0.25)), true)
+			draw_rect(panel, Color(0.035, 0.025, 0.075, 0.88 * minf(1.0, a + 0.25)), true)
+			draw_rect(Rect2(panel.position, Vector2(7, panel.size.y)), Color(p.color.r, p.color.g, p.color.b, 0.58 * a), true)
+			draw_string(ThemeDB.fallback_font, panel.position + Vector2(24, 38), p.title, HORIZONTAL_ALIGNMENT_LEFT, 390, 24, Color.WHITE)
+			draw_string(ThemeDB.fallback_font, panel.position + Vector2(24, 78), p.body, HORIZONTAL_ALIGNMENT_LEFT, 410, 15, Color(0.92, 0.88, 1.0))
+			draw_string(ThemeDB.fallback_font, panel.position + Vector2(24, 124), p.footer, HORIZONTAL_ALIGNMENT_LEFT, 410, 14, Color(1.0, 0.88, 0.52))
 
 func _draw_ascension_fx() -> void:
 	if ascension_fx <= 0.0:
@@ -778,6 +782,25 @@ func _draw_ascension_fx() -> void:
 	var a := ascension_fx / 2.8
 	draw_circle(Vector2(270, 390), 290.0 * (1.0 - a), Color(1.0, 0.50, 0.95, 0.10 * a))
 	draw_arc(Vector2(270, 390), 130.0 + 80.0 * (1.0 - a), 0, TAU, 80, Color(1.0, 0.72, 1.0, 0.55 * a), 5.0)
+
+func _draw_text_lines(text: String, pos: Vector2, line_height: float, font_size: int, color: Color, width: float) -> void:
+	var y := pos.y
+	# Godot's low-level draw_string does not wrap reliably in the web export, so
+	# wrap by words before drawing. Approximate chars-per-line keeps iPhone safe.
+	var max_chars: int = maxi(24, int(width / maxf(7.0, float(font_size) * 0.78)))
+	for raw_line in text.split("\n"):
+		var line := ""
+		for word in raw_line.split(" "):
+			var candidate := word if line.is_empty() else line + " " + word
+			if candidate.length() > max_chars and not line.is_empty():
+				draw_string(ThemeDB.fallback_font, Vector2(pos.x, y), line, HORIZONTAL_ALIGNMENT_LEFT, width, font_size, color)
+				y += line_height
+				line = word
+			else:
+				line = candidate
+		if not line.is_empty():
+			draw_string(ThemeDB.fallback_font, Vector2(pos.x, y), line, HORIZONTAL_ALIGNMENT_LEFT, width, font_size, color)
+			y += line_height
 
 func _draw_tex_center(tex: Texture2D, center: Vector2, max_size: Vector2, tint: Color = Color.WHITE) -> void:
 	if tex == null:
