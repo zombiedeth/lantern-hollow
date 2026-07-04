@@ -32,16 +32,6 @@ const SFX_UPGRADE := preload("res://assets/audio/sfx_upgrade.wav")
 const SFX_FAIRY := preload("res://assets/audio/sfx_fairy.wav")
 const SFX_ASCEND := preload("res://assets/audio/sfx_ascend.wav")
 
-# ---- Atmosphere tuning (whole block is one guarded perf+visual knob) ----
-const ATM_MIST_ENABLED := true
-const ATM_FIREFLIES_ENABLED := true
-const ATM_DUST_ENABLED := true
-const ATM_BLOOM_GLOW_ENABLED := true
-const ATM_SPIRIT_AURA_ENABLED := true
-const ATM_HARVEST_BURST_ENABLED := true
-const ATM_FIREFLY_COUNT := 14
-const ATM_DUST_COUNT := 24
-
 class PlantData:
 	var id: String
 	var name: String
@@ -97,10 +87,8 @@ var tap_rings: Array[Dictionary] = []
 var sparkles: Array[Dictionary] = []
 var beams: Array[Dictionary] = []
 var pulse_cards: Array[Dictionary] = []
-var harvest_rings: Array[Dictionary] = []
 var active_prompt: Dictionary = {}
 var ascension_fx := 0.0
-var fireworks: Array[Dictionary] = []  # brief star pops used for upgrades/ascend
 
 # key = plot index, value = {kind:int, planted_at:float}
 var plants: Dictionary = {}
@@ -148,7 +136,6 @@ func _process(delta: float) -> void:
 	_update_effects(delta)
 	_update_auto_systems(delta)
 	_update_guidance()
-	_update_atmosphere(delta)
 	_update_adaptive_music(delta)
 	queue_redraw()
 
@@ -254,24 +241,12 @@ func _update_effects(delta: float) -> void:
 	for p in pulse_cards:
 		p.age += delta
 	pulse_cards = pulse_cards.filter(func(p): return p.age < 0.65)
-	for h in harvest_rings:
-		h.age += delta
-	harvest_rings = harvest_rings.filter(func(h): return h.age < h.life)
-	for f in fireworks:
-		f.age += delta
-	fireworks = fireworks.filter(func(f): return f.age < f.life)
 	if not active_prompt.is_empty():
 		active_prompt.age = float(active_prompt.get("age", 0.0)) + delta
 	if message_timer > 0.0:
 		message_timer -= delta
 	if ascension_fx > 0.0:
 		ascension_fx = maxf(0.0, ascension_fx - delta)
-
-func _update_atmosphere(_delta: float) -> void:
-	# All atmosphere fx are derived from Time.get_ticks_msec() inside draw
-	# calls, so no per-frame work needed except updating ages for ring/sparkle
-	# buffers (already done in _update_effects above).
-	pass
 
 func _update_auto_systems(delta: float) -> void:
 	if sprite_helpers <= 0:
@@ -518,23 +493,12 @@ func _harvest_plot(plot_idx: int, automatic: bool) -> void:
 	coins += gained
 	plants.erase(plot_idx)
 	_spawn_sparkles(_plot_pos(plot_idx), data.color, 28)
-	if ATM_HARVEST_BURST_ENABLED:
-		_spawn_harvest_burst(_plot_pos(plot_idx), data.color)
 	_play_sfx("fairy" if automatic else "harvest")
 	if automatic:
 		beams.append({"from": _fairy_pos(plot_idx), "to": _plot_pos(plot_idx), "age": 0.0, "color": data.color})
 		_flash("Fairy harvested %s: +%d glow" % [data.name, gained])
 	else:
 		_flash("Harvested %s: +%d glow" % [data.name, gained])
-
-func _spawn_harvest_burst(center: Vector2, color: Color) -> void:
-	# Concentric expanding rings + a few extra radial sparkles. Pure 2D draw
-	# calls, deterministic time-out, web-safe.
-	harvest_rings.append({"pos": center, "age": 0.0, "life": 0.7, "radius": 18.0, "max": 76.0, "color": color, "width": 4.0})
-	harvest_rings.append({"pos": center, "age": 0.18, "life": 0.85, "radius": 6.0, "max": 96.0, "color": color.lightened(0.4), "width": 3.0})
-	for i in range(8):
-		var a := TAU * float(i) / 8.0 + 0.2
-		fireworks.append({"pos": center, "vel": Vector2(cos(a), sin(a)) * 130.0, "age": 0.0, "life": 0.55, "color": color, "size": 2.6, "kind": "star"})
 
 func _visible_catalog_size() -> int:
 	if ascensions > 0:
@@ -629,17 +593,12 @@ func _draw() -> void:
 	var s := _stage_scale()
 	draw_set_transform(Vector2.ZERO, 0.0, s)
 	_draw_background()
-	_draw_mist_back()       # NEW — drifting mist behind gameplay, very low alpha
 	_draw_plot_targets()
 	_draw_plants()
 	_draw_player()
 	_draw_fairy_helpers()
 	_draw_beams()
-	_draw_harvest_rings()    # NEW — expanding rings on harvest
 	_draw_sparkles()
-	_draw_fireworks()        # NEW — bigger star pops for upgrades/harvest
-	_draw_fireflies()        # NEW — golden ambient particles (drifting)
-	_draw_dust_motes()       # NEW — purple-blue ascending motes
 	_draw_tap_rings()
 	_draw_ui()
 	_draw_card_pulses()
@@ -684,45 +643,14 @@ func _draw_plants() -> void:
 			_draw_tex_center(TEX_SPROUT, p + Vector2(0, -12), Vector2(56, 54), Color.WHITE)
 			draw_arc(p, 36, -PI / 2.0, -PI / 2.0 + TAU * ratio, 32, data.color, 4.0)
 		else:
-			# Bloomed flower. New design: 3-layer glow halo + rotating sparkle
-			# ring around the bloom. Pure draw_circle / draw_arc calls — these
-			# are web-safe in gl_compatibility.
-			var t := Time.get_ticks_msec() / 1000.0
-			var pulse := 1.0 + sin(t * 4.0 + float(i)) * 0.05
-			var hot := data.color
-			var halo_pos := p + Vector2(0, -18)
-			if ATM_BLOOM_GLOW_ENABLED:
-				# Outer halo: largest, lowest alpha.
-				draw_circle(halo_pos, 60.0 * pulse, Color(hot.r, hot.g, hot.b, 0.10))
-				# Mid halo: smaller, brighter.
-				draw_circle(halo_pos, 46.0 * pulse, Color(hot.r, hot.g, hot.b, 0.22))
-				# Inner bright core near bloom centre.
-				draw_circle(halo_pos, 32.0 * pulse, Color(hot.r, hot.g, hot.b, 0.36))
-				# Rotating sparkle ring: 6 small bright dots orbiting the bloom.
-				var angle := t * 1.2 + float(i)
-				for k in range(6):
-					var a := angle + TAU * float(k) / 6.0
-					var dot_pos := halo_pos + Vector2(cos(a), sin(a)) * 52.0
-					draw_circle(dot_pos, 2.4, Color(1.0, 0.98, 0.86, 0.85))
-					draw_circle(dot_pos, 4.0, Color(1.0, 0.95, 0.7, 0.32))
-			else:
-				# Original single-circle glow retained as a fallback.
-				draw_circle(halo_pos, 43 * pulse, Color(hot.r, hot.g, hot.b, 0.26))
+			var pulse := 1.0 + sin(Time.get_ticks_msec() * 0.006 + float(i)) * 0.05
+			draw_circle(p + Vector2(0, -16), 43 * pulse, Color(data.color.r, data.color.g, data.color.b, 0.26))
 			_draw_tex_center(data.tex, p + Vector2(0, -28), Vector2(78, 94), data.color.lightened(0.2) if data.id in ["star", "nova", "sun"] else Color.WHITE)
 			draw_arc(p + Vector2(0, -18), 48, 0, TAU, 48, Color(1, 1, 1, 0.36), 2.0)
 
 func _draw_player() -> void:
-	# Shadow drop.
 	draw_circle(player_pos + Vector2(0, 18), 32, Color(0.02, 0.01, 0.04, 0.30))
-	if ATM_SPIRIT_AURA_ENABLED:
-		# New layered aura: outer breathing halo + mid pulsing ring + tight core.
-		var t := Time.get_ticks_msec() / 1000.0
-		var breathe := 0.5 + 0.5 * sin(t * 2.4)
-		draw_circle(player_pos, 78.0, Color(1.0, 0.85, 0.32, 0.06 + 0.06 * breathe))
-		draw_circle(player_pos, 62.0, Color(1.0, 0.85, 0.32, 0.10 + 0.08 * breathe))
-		draw_circle(player_pos, 50.0, Color(1.0, 0.92, 0.65, 0.16 + 0.06 * breathe))
-	else:
-		draw_circle(player_pos, 56, Color(1.0, 0.85, 0.32, 0.18))
+	draw_circle(player_pos, 56, Color(1.0, 0.85, 0.32, 0.18))
 	_draw_tex_center(TEX_SPIRIT, player_pos + Vector2(0, -14), Vector2(74, 78), Color.WHITE)
 
 func _draw_fairy_helpers() -> void:
@@ -875,23 +803,13 @@ func _draw_active_prompt() -> void:
 	if active_prompt.is_empty():
 		return
 	var age := float(active_prompt.get("age", 0.0))
-	# Smoothstep eases the appear in for a slightly premium feel: the panel
-	# fades+scales in rather than popping. 0.22s with smoothstep curve.
-	var raw := clampf(age / 0.22, 0.0, 1.0)
-	var appear := raw * raw * (3.0 - 2.0 * raw)  # smoothstep
+	var appear := clampf(age / 0.22, 0.0, 1.0)
 	var t := Time.get_ticks_msec() * 0.001
 	var color: Color = active_prompt.color
 	var panel := PROMPT_PANEL
 
-	# Dim the garden behind so the card pops. Scaled with appear so the dim
-	# fades in alongside the panel instead of snapping at once.
+	# Dim the garden behind so the card pops.
 	draw_rect(Rect2(0, 0, W, H), Color(0.01, 0.008, 0.03, 0.52 * appear), true)
-
-	# Subtle scale-pop for the panel itself (0.92 -> 1.0) for a premium feel.
-	var pop := 0.92 + 0.08 * appear
-	var prev_xform := draw_get_transform()
-	var card_center := panel.position + panel.size * 0.5
-	draw_set_transform(card_center, 0.0, prev_xform.get_scale() * pop)
 
 	# Soft breathing glow halo behind the card.
 	var breathe := 0.85 + 0.15 * sin(t * 1.8)
@@ -929,9 +847,6 @@ func _draw_active_prompt() -> void:
 	draw_round_rect(btn, 18, Color(0.20, 0.55, 0.36, 0.95 * appear), true)
 	draw_round_rect(Rect2(btn.position, Vector2(btn.size.x, btn.size.y * 0.5)), 18, Color(0.30, 0.72, 0.48, 0.45 * appear), true)
 	draw_string(ThemeDB.fallback_font, btn.get_center() + Vector2(-26, 6), "Got it!", HORIZONTAL_ALIGNMENT_LEFT, 80, 16, Color(0.92, 1.0, 0.95, appear))
-
-	# Restore the transform so subsequent draw calls are unaffected.
-	draw_set_transform(prev_xform.get_origin(), 0.0, prev_xform.get_scale())
 
 func _draw_card_pulses() -> void:
 	for p in pulse_cards:
@@ -1021,104 +936,3 @@ func draw_round_rect(rect: Rect2, radius: float, color: Color, filled: bool = tr
 		var a := PI + (PI / 2.0) * float(i) / float(n)
 		pts.append(Vector2(p.x + r + cos(a) * r, p.y + r + sin(a) * r))
 	draw_colored_polygon(pts, color)
-
-# =============================================================================
-# PREMIUM ATMOSPHERE LAYER
-# All below: web-safe (CanvasItem draw calls only, no PointLight2D, no GPU
-# particles via GPUParticles2D, no Forward+), guarded by toggles, single
-# monolithic diff so the user can `git revert` one commit to undo the lot.
-# =============================================================================
-
-# ---- Mist (back layer) ----
-func _draw_mist_back() -> void:
-	if not ATM_MIST_ENABLED:
-		return
-	var t := Time.get_ticks_msec() / 1000.0
-	# 8 soft horizontal bands drifting in opposite directions = cheap animated
-	# fog. Uses draw_circle with a very low alpha so it looks like a veiling
-	# haze rather than discrete shapes.
-	for i in range(8):
-		var y := 80.0 + float(i) * 95.0
-		var drift := sin(t * 0.06 + float(i) * 0.7) * 60.0
-		var x := W * 0.5 + drift
-		var r := 220.0 + sin(t * 0.18 + float(i)) * 30.0
-		var a := 0.045 + 0.025 * sin(t * 0.25 + float(i))
-		# Cooler at top, warmer/more visible near the bottom beds.
-		var col := Color(0.42, 0.55, 0.78, a) if i < 4 else Color(0.55, 0.42, 0.66, a)
-		draw_circle(Vector2(x, y), r, col)
-
-# ---- Fireflies (golden ambient particles, drifting, breathing) ----
-func _draw_fireflies() -> void:
-	if not ATM_FIREFLIES_ENABLED:
-		return
-	var t := Time.get_ticks_msec() / 1000.0
-	for i in range(ATM_FIREFLY_COUNT):
-		var seed := float(i) * 7.31
-		var x := W * 0.5 + sin(t * 0.18 + seed) * (180.0 + 30.0 * sin(t * 0.07 + seed))
-		var y := 300.0 + cos(t * 0.23 + seed * 1.3) * 180.0 + sin(t * 0.4 + seed) * 18.0
-		# Breathing brightness; clamp to keep them visible but not jarring.
-		var breathe := 0.5 + 0.5 * sin(t * 1.6 + seed * 0.7)
-		var outer_a := 0.20 + 0.18 * breathe
-		var mid_a := 0.40 + 0.30 * breathe
-		var core_a := 0.55 + 0.30 * breathe
-		var hot := Color(1.0, 0.84, 0.40)
-		# 3-layer halo: soft outer, brighter mid, hot core. iPhone Safari renders
-		# this just fine because each layer is a single draw_circle.
-		draw_circle(Vector2(x, y), 9.0, Color(hot.r, hot.g, hot.b, outer_a))
-		draw_circle(Vector2(x, y), 5.0, Color(hot.r, hot.g, hot.b, mid_a))
-		draw_circle(Vector2(x, y), 2.2, Color(1.0, 0.96, 0.78, core_a))
-
-# ---- Dust motes (purple-blue, slowly rising) ----
-func _draw_dust_motes() -> void:
-	if not ATM_DUST_ENABLED:
-		return
-	var t := Time.get_ticks_msec() / 1000.0
-	for i in range(ATM_DUST_COUNT):
-		var seed := float(i) * 11.13
-		# Slow rise — wraps from top back to bottom after a cycle.
-		var phase := fmod(t * 0.04 + seed, 1.0)
-		var x := 60.0 + float(i) * 19.0 + sin(t * 0.3 + seed) * 14.0
-		x = fmod(x + W, W)
-		var y := H - phase * (H * 0.85)
-		var breathe := 0.5 + 0.5 * sin(t * 1.1 + seed * 1.3)
-		var a := 0.18 + 0.18 * (1.0 - phase) * breathe
-		var col := Color(0.66, 0.62, 1.0, a)
-		draw_circle(Vector2(x, y), 2.0, col)
-		draw_circle(Vector2(x, y), 0.9, Color(0.85, 0.84, 1.0, a * 1.4))
-
-# ---- Bloom glow (3-layer halo + rotating sparkle ring around bloomed flowers) ----
-# Lives inline inside _draw_plants() branching so the existing flower draw
-# already shows the upgrade when ATM_BLOOM_GLOW_ENABLED is on.
-
-# ---- Spirit aura (replaces the single ambient circle on the player) ----
-# Implemented in-place inside _draw_player().
-
-# ---- Expanding harvest rings ----
-func _draw_harvest_rings() -> void:
-	if not ATM_HARVEST_BURST_ENABLED:
-		return
-	for h in harvest_rings:
-		var p := float(h.age) / float(h.life)
-		if p < 0.0 or p > 1.0:
-			continue
-		var radius := lerpf(float(h.radius), float(h.max), p)
-		var alpha := (1.0 - p) * 0.85
-		var c: Color = h.color
-		draw_arc(h.pos, radius, 0, TAU, 56, Color(c.r, c.g, c.b, alpha), float(h.width))
-		# Inner faint disc that fades faster than the ring.
-		var inner := radius * 0.6
-		draw_circle(h.pos, inner, Color(c.r, c.g, c.b, alpha * 0.18))
-
-# ---- Star-pops (fireworks buffer) ----
-func _draw_fireworks() -> void:
-	for f in fireworks:
-		var a := 1.0 - float(f.age) / float(f.life)
-		if a < 0.0:
-			continue
-		var c: Color = f.color
-		var sz := float(f.size) * (0.6 + 0.4 * a)
-		draw_circle(f.pos, sz, Color(c.r, c.g, c.b, 0.95 * a))
-		# Star shape: a tiny plus of two short lines — web-safe via draw_line.
-		var r := sz * 2.6
-		draw_line(f.pos + Vector2(-r, 0), f.pos + Vector2(r, 0), Color(1.0, 0.96, 0.78, 0.7 * a), 1.2, true)
-		draw_line(f.pos + Vector2(0, -r), f.pos + Vector2(0, r), Color(1.0, 0.96, 0.78, 0.7 * a), 1.2, true)
