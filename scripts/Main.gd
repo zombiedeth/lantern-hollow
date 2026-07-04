@@ -12,6 +12,10 @@ const PLOT_SPACING := 82.0
 const PLOT_START := Vector2(106, 235)
 const PLAYER_SPEED := 520.0
 
+# Web-safe atmosphere toggles. Each feature ships in its own commit.
+const ATM_FIREFLIES_ENABLED := true
+const ATM_FIREFLY_COUNT := 12
+
 const BG := preload("res://assets/generated/lantern_hollow_bg.png")
 const TEX_SPIRIT := preload("res://assets/generated/sprites/spirit.png")
 const TEX_SEED := preload("res://assets/generated/sprites/seed.png")
@@ -593,6 +597,7 @@ func _draw() -> void:
 	var s := _stage_scale()
 	draw_set_transform(Vector2.ZERO, 0.0, s)
 	_draw_background()
+	_draw_fireflies()
 	_draw_plot_targets()
 	_draw_plants()
 	_draw_player()
@@ -605,6 +610,19 @@ func _draw() -> void:
 	_draw_active_prompt()
 	_draw_ascension_fx()
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+func _draw_fireflies() -> void:
+	if not ATM_FIREFLIES_ENABLED:
+		return
+	var t := Time.get_ticks_msec() * 0.001
+	for i in range(ATM_FIREFLY_COUNT):
+		var seed := float(i) * 7.31
+		var x := W * 0.5 + sin(t * 0.18 + seed) * (170.0 + 22.0 * sin(t * 0.07 + seed))
+		var y := 260.0 + cos(t * 0.23 + seed * 1.3) * 130.0 + sin(t * 0.4 + seed) * 16.0
+		var breathe := 0.5 + 0.5 * sin(t * 1.6 + seed * 0.7)
+		var glow := Color(1.0, 0.82, 0.36)
+		draw_circle(Vector2(x, y), 7.0, Color(glow.r, glow.g, glow.b, 0.16 + 0.12 * breathe))
+		draw_circle(Vector2(x, y), 3.2, Color(1.0, 0.94, 0.68, 0.42 + 0.24 * breathe))
 
 func _draw_background() -> void:
 	draw_texture_rect(BG, Rect2(0, 0, W, H), false)
