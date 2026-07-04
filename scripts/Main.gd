@@ -71,6 +71,7 @@ var auto_plant_timer := 0.0
 var music_players: Dictionary = {}
 var sfx_players: Dictionary = {}
 var audio_ready := false
+var music_started := false
 
 # One-time guidance markers.
 var seen_intro := false
@@ -103,7 +104,7 @@ func _ready() -> void:
 		PlantData.new("nova", "Nova Lotus", 140, 520, 34.0, Color(0.45, 1.0, 0.95), TEX_FLOWER_SPARK, "Constellarium crop. Late-game engine."),
 		PlantData.new("sun", "Sunseed", 420, 1850, 46.0, Color(1.0, 0.58, 0.16), TEX_FLOWER_EMBER, "Ascended crop. Turns dust into absurd glow."),
 	]
-	print("LANTERN_HOLLOW_READY audio_build_v12_fullscreen_mobile")
+	print("LANTERN_HOLLOW_READY audio_build_v13_ios_tap_audio_unlock")
 	# Do not force the viewport to 540x960 here. Web/mobile shells provide
 	# the real canvas size; _draw() scales the 540x960 stage to fill it.
 	_setup_audio()
@@ -149,9 +150,13 @@ func _setup_audio() -> void:
 	base_player.name = "Music_Base_Lofi"
 	base_player.stream = stream
 	base_player.volume_db = -15.0
-	base_player.finished.connect(func(): base_player.play())  # loop forever
+	base_player.finished.connect(func():
+		if music_started:
+			base_player.play()
+	)  # loop forever after first user tap
 	add_child(base_player)
-	base_player.play()
+	# Do NOT play music in _ready(): iPhone Safari blocks autoplay.
+	# _unlock_audio_from_gesture() starts this on the first touch/click.
 	music_players["base"] = base_player
 	var sfx := {"plant": SFX_PLANT, "bloom": SFX_BLOOM, "harvest": SFX_HARVEST, "upgrade": SFX_UPGRADE, "fairy": SFX_FAIRY, "ascend": SFX_ASCEND}
 	for key in sfx.keys():
@@ -163,18 +168,31 @@ func _setup_audio() -> void:
 		sfx_players[key] = player
 	audio_ready = true
 
+func _unlock_audio_from_gesture() -> void:
+	if not audio_ready or music_started or not music_players.has("base"):
+		return
+	var player: AudioStreamPlayer = music_players["base"]
+	player.play()
+	music_started = true
+	print("LANTERN_HOLLOW_AUDIO_STARTED user_gesture")
+
 func _play_sfx(key: String) -> void:
 	if not audio_ready or not sfx_players.has(key):
 		return
+	# If the first audible thing is a button/SFX action, also unlock music.
+	_unlock_audio_from_gesture()
 	var player: AudioStreamPlayer = sfx_players[key]
 	player.stop()
 	player.play()
 
 func _update_adaptive_music(delta: float) -> void:
 	# No adaptive music layers anymore. Keep one lofi base song steady.
-	if not audio_ready or not music_players.has("base"):
+	# On iOS/Safari this must remain silent until the first user gesture.
+	if not audio_ready or not music_started or not music_players.has("base"):
 		return
 	var player: AudioStreamPlayer = music_players["base"]
+	if not player.playing:
+		player.play()
 	player.volume_db = lerpf(player.volume_db, -15.0, minf(1.0, delta * 1.8))
 
 func _update_effects(delta: float) -> void:
@@ -230,8 +248,10 @@ func _update_guidance() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_unlock_audio_from_gesture()
 		_handle_tap(event.position)
 	elif event is InputEventScreenTouch and event.pressed:
+		_unlock_audio_from_gesture()
 		_handle_tap(event.position)
 
 func _handle_tap(screen_pos: Vector2) -> void:
