@@ -211,16 +211,24 @@ const engine = new Engine(GODOT_CONFIG);
 			audio.volume = 0.88;
 			if (audio.readyState === 0) audio.load();
 			// Kick both unlock paths synchronously inside the same trusted gesture.
-			// Do not await the primer before play(), or iOS may spend the activation.
+			// Do not wait forever on audio.play() — Safari can leave the promise pending.
 			const primePromise = primeAudioHardware();
 			const playPromise = audio.play();
 			await primePromise.catch(() => {});
-			await playPromise;
-			started = true;
-			console.log('LANTERN_NATIVE_AUDIO_STARTED', reason, audio.readyState, audio.currentSrc || MUSIC_SRC);
+			await Promise.race([
+				playPromise.then(() => true).catch(() => false),
+				new Promise((resolve) => setTimeout(() => resolve(false), 1200)),
+			]);
+			started = !audio.paused;
+			if (started) {
+				console.log('LANTERN_NATIVE_AUDIO_STARTED', reason, audio.readyState, audio.currentSrc || MUSIC_SRC);
+			} else {
+				console.warn('LANTERN_NATIVE_AUDIO_NOT_YET_PLAYING', reason, audio.readyState, audio.currentSrc || MUSIC_SRC);
+			}
 		} catch (err) {
-			attemptInFlight = false;
 			console.warn('LANTERN_NATIVE_AUDIO_BLOCKED', reason, err && (err.name || err.message || err));
+		} finally {
+			attemptInFlight = false;
 		}
 	}
 
