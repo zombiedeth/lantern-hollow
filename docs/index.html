@@ -109,58 +109,6 @@ body {
 	z-index: 1;
 }
 
-#audio-debug {
-	position: fixed;
-	left: 12px;
-	bottom: 12px;
-	z-index: 9999;
-	background: rgba(12, 12, 20, 0.92);
-	border: 1px solid rgba(255,255,255,0.18);
-	border-radius: 14px;
-	padding: 10px 12px;
-	width: min(320px, calc(100vw - 24px));
-	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
-	color: #f4f4ff;
-	box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-	display: none;
-	backdrop-filter: blur(8px);
-}
-
-#audio-debug.show {
-	display: block;
-}
-
-#audio-debug .title {
-	font-size: 12px;
-	font-weight: 800;
-	letter-spacing: 0.14em;
-	text-transform: uppercase;
-	color: #ffd86a;
-	margin-bottom: 6px;
-}
-
-#audio-debug .state {
-	font-size: 11px;
-	line-height: 1.35;
-	white-space: pre-wrap;
-	word-break: break-word;
-	color: rgba(255,255,255,0.82);
-	margin-bottom: 8px;
-}
-
-#audio-debug button {
-	appearance: none;
-	border: 0;
-	border-radius: 999px;
-	background: linear-gradient(135deg, #ff9a4d, #ffd24d);
-	color: #1a1020;
-	font-weight: 900;
-	letter-spacing: 0.08em;
-	padding: 10px 14px;
-	width: 100%;
-	box-shadow: 0 6px 18px rgba(255, 194, 77, 0.25);
-}
-
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
@@ -180,10 +128,6 @@ body {
 			<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="index.png" alt="">
 			<progress id="status-progress"></progress>
 			<div id="status-notice"></div>
-		<div id="audio-debug">
-			<div class="title">Audio debug</div>
-			<div class="state" id="audio-debug-state">loading…</div>
-			<button id="audio-debug-beep" type="button">TEST BEEP</button>
 		</div>
 
 		<script src="index.js"></script>
@@ -306,62 +250,7 @@ const engine = new Engine(GODOT_CONFIG);
 	});
 })();
 
-(function setupAudioDebugPanel() {
-	const params = new URLSearchParams(location.search);
-	if (!params.has('audioDebug')) return;
-	const panel = document.getElementById('audio-debug');
-	const state = document.getElementById('audio-debug-state');
-	const beep = document.getElementById('audio-debug-beep');
-	if (!panel || !state || !beep) return;
-	panel.classList.add('show');
-
-	function snapshot(prefix) {
-		const audio = window.LanternNativeAudio ? window.LanternNativeAudio.audio : null;
-		state.textContent = JSON.stringify({
-			prefix,
-			ua: navigator.userAgent,
-			visibility: document.visibilityState,
-			audioPresent: !!audio,
-			started: !!(audio && !audio.paused),
-			paused: audio ? audio.paused : null,
-			readyState: audio ? audio.readyState : null,
-			muted: audio ? audio.muted : null,
-			volume: audio ? audio.volume : null,
-			currentTime: audio ? audio.currentTime : null,
-			currentSrc: audio ? audio.currentSrc : null,
-		}, null, 2);
-	}
-
-	async function testBeep() {
-		snapshot('testing');
-		try {
-			const AC = window.AudioContext || window.webkitAudioContext;
-			const ctx = new AC();
-			await ctx.resume().catch(() => {});
-			const osc = ctx.createOscillator();
-			const gain = ctx.createGain();
-			osc.type = 'sine';
-			osc.frequency.value = 880;
-			gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-			gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + 0.03);
-			gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
-			osc.connect(gain).connect(ctx.destination);
-			osc.start();
-			osc.stop(ctx.currentTime + 0.24);
-			if (window.LanternNativeAudio) await window.LanternNativeAudio.unlock('audio-debug');
-			snapshot('beep sent');
-		} catch (err) {
-			state.textContent = 'ERROR: ' + (err && (err.name || err.message || err));
-		}
-	}
-
-	beep.addEventListener('click', testBeep);
-	snapshot('ready');
-	setInterval(() => snapshot('poll'), 1000);
-})();
-
 (function () {
-
 	const statusOverlay = document.getElementById('status');
 	const statusProgress = document.getElementById('status-progress');
 	const statusNotice = document.getElementById('status-notice');
